@@ -67,7 +67,7 @@ project-root/
       2026-09-03.
 - [x] Step 3: Wire Output button to logic + shuffle + render results — done
       2026-09-03.
-- [ ] Step 4: Styling polish / animation (optional, TBD)
+- [x] Step 4: Styling polish + reveal animation — done 2026-09-03.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -138,7 +138,66 @@ project-root/
   characters observed, including Hangul and symbol characters. `npm run build`
   succeeds.
 
+### Step 0 — CLAUDE.md commit-policy addition
+- Added a "## Commit policy" section to [CLAUDE.md](CLAUDE.md): commit at the end of
+  every completed step with a clear message, without asking first. Scope: plain
+  local commits, plus a plain `git push` since this repo already has `origin`
+  configured and tracked (`main` -> `origin/main`) — anything beyond that
+  (force-push, rebase, remote setup) still needs explicit approval.
+- Committed the previously-pending Step 3 work under this new policy, as two
+  commits (policy addition, then the Step 3 wiring), and pushed both to
+  `origin/main` since a remote was already set up.
+
+### Step 4 notes — assumptions & deviations
+- Button restyled to match the mockup detail you gave: white (`#ffffff`) fill,
+  dashed `#1e88e5` border, bold black text — distinct from the TextBox/slots,
+  which stay dark/transparent with a dashed-blue border only. Added a `:disabled`
+  state (dimmed, `not-allowed` cursor) for while the reveal animation plays.
+- Tightened overall spacing/sizing (`.app` max-width 640px→560px, gap 24px→20px;
+  slot gap 12px→10px; button padding/min-width trimmed slightly) as a modest pass
+  toward the mockup's proportions — no mockup image file exists in the repo, only
+  the textual description, so this was a judgment call rather than pixel-matching;
+  flag if you want it closer to a specific reference.
+- Reveal animation implemented as component-level state/effects directly in
+  [App.jsx](src/App.jsx) (not a separate file/hook or `src/logic/` module, per your
+  note that it's a UI/timing concern) — `setTimeout`/`setInterval` only, no new
+  dependency. On click, `generateRound()` is still called once up front (so the
+  actual result is decided immediately, exactly as before); the scramble animation
+  is purely a decorative reveal of that already-decided result, staggered slot by
+  slot.
+  - Stagger: 110ms between each slot starting its reveal.
+  - Scramble: each slot cycles a random decorative character every 45ms for 450ms,
+    then locks to its real value. The scramble pool (digits + A–Z + a handful of
+    symbols/arrows) is a local constant in App.jsx, independent from
+    `SPECIAL_SYMBOLS` in randomRules.js — kept separate so this step didn't touch
+    randomRules.js at all, per the scope limit.
+  - `isAnimating` state disables the Output button for the full animation
+    (first slot's stagger start through the last slot's lock-in) and re-enables
+    once all 5 have settled; `handleOutput` also no-ops if called again while
+    `isAnimating` is true, as a defensive guard.
+  - Pending timers are cleared on unmount to avoid state updates after unmount.
+- Confirmed `src/logic/randomRules.js` has zero diff for this step (`git diff
+  --name-only src/logic/randomRules.js` is empty).
+- Verified on the dev server: clicked Output several times.
+  - First click: screenshot mid-animation caught slot 1 already scrambling while
+    slots 2–5 were still blank — confirms the stagger (slots don't all start at
+    once).
+  - A 3-screenshot rapid-fire batch (~150ms apart) showed each slot's displayed
+    character changing between frames while the button stayed visibly
+    disabled/greyed the whole time — confirms the scramble effect and the
+    disabled state holding for the animation's duration.
+  - After the animation settled, the button returned to its normal white/enabled
+    state and slot values stopped changing (stable final result, no leftover
+    scramble artifacts). Final values were plausible per rule across all runs
+    (digits, letters, arrows, Hangul, symbols — including `■`, which briefly
+    looked like a missing-glyph box in a screenshot but is the correct symbol
+    rendering in white).
+  - No console errors. `npm run build` succeeds.
+
 ## Open items for the user
 - Exact copy/text for the static text box.
 - Confirm the Step 1 deviations noted above are acceptable (esp. oxlint inclusion,
   square slot aspect ratio, no favicon).
+- No mockup image file exists in this repo (only text descriptions) — if you have
+  the actual image, sharing it would let future styling passes match it exactly
+  instead of by judgment call.
