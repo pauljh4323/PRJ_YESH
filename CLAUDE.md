@@ -32,3 +32,10 @@ in React Native). Mobile work is NOT in scope right now — only keep the door o
 ## Style reference
 Dark background, dashed blue borders, bold black/white text — see mockup description
 in context.md.
+
+## Commit policy
+Commit at the end of every completed step with a clear message describing the work,
+without asking for confirmation first. This standing rule authorizes a plain local
+commit only — no force-push, no rewriting history, no remote operations beyond a
+plain `git push` if a remote is already configured. Ask first for anything beyond
+that (force-push, rebase, remote setup, etc.).
