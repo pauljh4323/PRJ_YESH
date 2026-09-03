@@ -11,7 +11,7 @@ const EMPTY_SLOTS = Array(SLOT_COUNT).fill(null)
 // generateRound() in src/logic/randomRules.js; nothing here decides outcomes,
 // only how they're displayed over time. ---
 const STAGGER_MS = 110 // delay before each successive slot starts revealing
-const SCRAMBLE_DURATION_MS = 450 // how long a slot scrambles before locking in
+const SCRAMBLE_DURATION_MS = 900 // how long a slot scrambles before locking in
 const SCRAMBLE_TICK_MS = 45 // how often the scrambled character changes
 
 // Purely decorative characters shown mid-scramble — not tied to any game rule.

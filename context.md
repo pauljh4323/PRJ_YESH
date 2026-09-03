@@ -17,7 +17,10 @@ must stay portable to make that easy.
   (heavier than needed) — logic/UI separation now + Capacitor (or React Native reuse)
   later for the mobile port.
 - **Text box:** Static, non-editable instructional/decorative text. Not an input
-  field, does not affect game logic. Final copy: "PRAY".
+  field, does not affect game logic. Final copy: "ORACLE_MACHINE".
+- **Slot character color:** the generated character text in slots A–E is
+  `#4fc3f7` (cyan-blue), confirmed by the user from proposed options. Slot/box
+  border color (`#1e88e5`-ish dashed blue) and the Output button are unaffected.
 - **Shuffle behavior:** After clicking Output, the *screen position* of each slot's
   result is randomized. Each rule (A–E) always generates according to its own fixed
   rule regardless of where it ends up on screen.
@@ -76,6 +79,9 @@ project-root/
       animation and styling polish added on top. A reference mockup image was
       offered but the user declined to add it to the repo; current styling
       (built from the textual mockup description) is considered sufficient as-is.
+- [x] Post-MVP tweak (2026-09-03): TextBox copy finalized to "ORACLE_MACHINE"
+      (was "PRAY"); slot character color set to `#4fc3f7`; reveal-animation
+      scramble duration doubled from 450ms to 900ms (stagger unchanged at 110ms).
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -201,6 +207,24 @@ project-root/
     looked like a missing-glyph box in a screenshot but is the correct symbol
     rendering in white).
   - No console errors. `npm run build` succeeds.
+
+### Post-MVP tweak notes — TextBox copy, slot color, scramble duration
+- `TextBox.jsx`: copy changed from "PRAY" to "ORACLE_MACHINE" (final, per user).
+- `App.css`: added `color: #4fc3f7` to `.output-slot` — the only change to that
+  rule; border (`2px dashed #1e88e5`), background, and `.output-button` colors
+  are untouched. This one CSS rule is also what renders the mid-scramble
+  characters (same element), so the scramble text is cyan too — not treated as
+  a separate case since the instruction was "the generated character text in
+  slots A–E" broadly.
+- `App.jsx`: `SCRAMBLE_DURATION_MS` changed from `450` to `900` (doubled, as
+  asked); `STAGGER_MS` left at `110`, unchanged. Verified on the dev server: at
+  ~1.1s after clicking Output the button was still disabled and slots still
+  scrambling (would have already settled by ~890ms under the old 450ms value),
+  confirming the longer duration took effect; settled a moment later with
+  plausible cyan-colored values and the button back to its normal white state.
+- Diff scope confirmed minimal: only `TextBox.jsx`, `App.css`, and `App.jsx`
+  changed (`git diff --stat`) — `randomRules.js`, layout/spacing, stagger
+  timing, and button styling untouched.
 
 ## Open items for the user
 None — MVP complete.

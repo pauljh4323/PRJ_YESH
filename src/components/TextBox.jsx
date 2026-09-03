@@ -4,7 +4,7 @@
 function TextBox() {
   return (
     <div className="text-box">
-      <p>PRAY</p>
+      <p>ORACLE_MACHINE</p>
     </div>
   )
 }
