@@ -17,7 +17,7 @@ must stay portable to make that easy.
   (heavier than needed) — logic/UI separation now + Capacitor (or React Native reuse)
   later for the mobile port.
 - **Text box:** Static, non-editable instructional/decorative text. Not an input
-  field, does not affect game logic. Exact copy: TBD — ask user before finalizing.
+  field, does not affect game logic. Final copy: "PRAY".
 - **Shuffle behavior:** After clicking Output, the *screen position* of each slot's
   result is randomized. Each rule (A–E) always generates according to its own fixed
   rule regardless of where it ends up on screen.
@@ -68,6 +68,14 @@ project-root/
 - [x] Step 3: Wire Output button to logic + shuffle + render results — done
       2026-09-03.
 - [x] Step 4: Styling polish + reveal animation — done 2026-09-03.
+- [x] **MVP complete** (2026-09-03) — all 9 original rules from the spec are
+      implemented and verified: the static text box, the five rule-based slots
+      A–E (digit / digit-or-letter / digit-or-letter-or-arrow / Hangul syllable /
+      special symbol), and shuffle-on-output (fresh values each click, randomized
+      screen position, rule identity hidden from the UI) — plus the reveal
+      animation and styling polish added on top. A reference mockup image was
+      offered but the user declined to add it to the repo; current styling
+      (built from the textual mockup description) is considered sufficient as-is.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -195,9 +203,4 @@ project-root/
   - No console errors. `npm run build` succeeds.
 
 ## Open items for the user
-- Exact copy/text for the static text box.
-- Confirm the Step 1 deviations noted above are acceptable (esp. oxlint inclusion,
-  square slot aspect ratio, no favicon).
-- No mockup image file exists in this repo (only text descriptions) — if you have
-  the actual image, sharing it would let future styling passes match it exactly
-  instead of by judgment call.
+None — MVP complete.
