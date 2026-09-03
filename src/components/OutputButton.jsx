@@ -1,7 +1,7 @@
-// Button labeled "출력" (Output). No click behavior yet — wired up in Step 3.
-function OutputButton() {
+// Button labeled "출력" (Output). Triggers a new round via the onClick prop.
+function OutputButton({ onClick }) {
   return (
-    <button type="button" className="output-button">
+    <button type="button" className="output-button" onClick={onClick}>
       출력
     </button>
   )

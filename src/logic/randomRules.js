@@ -69,3 +69,25 @@ export const RULES = {
   D: generateD,
   E: generateE,
 }
+
+/** Fisher–Yates shuffle. Returns a new array; does not mutate the input. */
+function shuffle(items) {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = randomIndex(i + 1)
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
+/**
+ * Runs one round: generates a fresh character from each of the five RULES
+ * (A–E) and returns them in a randomly shuffled order. Screen position is
+ * randomized per context.md's "Shuffle behavior" — each rule always follows
+ * its own fixed rule, only display order is randomized, and every call
+ * regenerates fresh values (never reshuffles stale results).
+ */
+export function generateRound() {
+  const characters = Object.values(RULES).map((generate) => generate())
+  return shuffle(characters)
+}

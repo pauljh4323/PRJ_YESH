@@ -65,7 +65,8 @@ project-root/
 - [x] Step 1: Project scaffold + static UI (no logic) — done 2026-09-03.
 - [x] Step 2: Implement per-slot random rules in src/logic/randomRules.js — done
       2026-09-03.
-- [ ] Step 3: Wire Output button to logic + shuffle + render results
+- [x] Step 3: Wire Output button to logic + shuffle + render results — done
+      2026-09-03.
 - [ ] Step 4: Styling polish / animation (optional, TBD)
 
 ### Step 1 notes — assumptions & deviations
@@ -115,6 +116,27 @@ project-root/
     11,168 unique syllables drawn out of the 11,172-syllable block.
   - `generateE`: all draws were valid members of `SPECIAL_SYMBOLS`; all 59 symbols
     were drawn, frequencies ranged 1602–1770 against an expected ~1695 (uniform).
+
+### Step 3 notes — assumptions & deviations
+- Added `generateRound()` to `src/logic/randomRules.js` (kept in the same file
+  rather than a new `gameEngine.js` — it's a few lines that directly build on
+  `RULES`/`shuffle`, a separate file felt like unnecessary splitting for this
+  size). Calls each of the five `RULES` generators fresh, then Fisher–Yates
+  shuffles the resulting array — every call regenerates values, never reshuffles
+  stale ones. Still pure/framework-agnostic, no React/DOM.
+- State lives in [App.jsx](src/App.jsx) (`useState`, lifted up — standard React
+  pattern, not treated as ambiguous): a `slots` array of 5 values, `null` initially
+  so all slots render blank before the first click. `OutputButton` takes an
+  `onClick` prop; `OutputSlots` takes a `slots` prop and renders each value with no
+  A/B/C/D/E labels.
+- Minimal CSS added to `.output-slot` (flex-centering + font-size) so a single
+  character displays legibly — no broader style pass, per instructions.
+- Manually clicked through 5 times via the dev server: values were plausible per
+  rule each time (digits, letters, arrows, Hangul syllables, and symbols all
+  appeared), left-to-right order changed between clicks, and values were fresh
+  each click (not a reshuffle of prior results). No clipped/broken-looking
+  characters observed, including Hangul and symbol characters. `npm run build`
+  succeeds.
 
 ## Open items for the user
 - Exact copy/text for the static text box.
