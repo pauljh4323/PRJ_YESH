@@ -87,6 +87,11 @@ project-root/
       restricted from the full U+AC00–U+D7A3 block to the KS X 1001 완성형 set
       of 2,350 commonly-used syllables (see notes below for source); scramble
       duration doubled again, 900ms → 1800ms (stagger still unchanged, 110ms).
+- [x] Mobile porting — initial Capacitor setup (2026-09-06): `@capacitor/core`
+      + `@capacitor/cli` installed, `capacitor.config.json` generated
+      (webDir "dist" confirmed), `npm run build` verified. No android/ios
+      platform added yet. See "## Mobile porting" section for full detail and
+      the Android tooling check result.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -271,5 +276,58 @@ project-root/
   new `ksHangul2350.js` data file. `TextBox.jsx`, `App.css` (slot color/border),
   stagger timing, and Rules A/B/C/E were not touched.
 
+## Mobile porting
+
+- **Approach:** Capacitor (wraps the existing Vite web build; no code fork needed).
+- **App name:** Oracle Machine
+- **App ID:** com.pauljh4323.oraclemachine
+- **Priority platform:** Android first (iOS not evaluated yet).
+- **Current status (2026-09-06):** `@capacitor/core` and `@capacitor/cli` (dev
+  dependency) installed; `npx cap init` run non-interactively; `capacitor.config.json`
+  generated with `webDir: "dist"`, confirmed to match Vite's build output. Native
+  `android/`/`ios/` platform folders have **not** been added yet — that's the next
+  step. No existing game code/components/logic were touched for this.
+- **Android tooling check (this machine, 2026-09-06):** `ANDROID_HOME` /
+  `ANDROID_SDK_ROOT` are **not set** in the shell, and `adb`/`sdkmanager`/`gradle`
+  are **not on PATH** — so naive auto-detection looks like "nothing installed."
+  However, a full, working Android SDK **does exist on disk**, just not wired up
+  via environment variables:
+  - SDK root: `D:\3_STUDY\0. Programming\Android SDK` — `platform-tools` (adb
+    34.0.5, confirmed working via `adb version`), `platforms\android-33` and
+    `android-34`, `build-tools\30.0.3` and `34.0.0`, `cmdline-tools\latest`
+    (sdkmanager confirmed runnable), an emulator directory, and SDK licenses
+    already accepted (`licenses/` has `android-sdk-license` etc.).
+  - An AVD is already configured: `Pixel_3a_API_34_extension_level_7_x86_64`.
+  - Android Studio itself is installed alongside it at
+    `D:\3_STUDY\0. Programming\Android Studio` (has real binaries in `bin/`).
+  - Stale leftovers pointed the wrong way at first: Android Studio's cached
+    config (`%LOCALAPPDATA%\Google\AndroidStudio2022.3\.home`) still points to
+    `D:\2. STUDY\0. Programming\Android Studio`, which no longer exists — the
+    `2. STUDY` folder was apparently renamed to `3_STUDY` since that cache was
+    written (Nov 2023), which is presumably also why `ANDROID_HOME` isn't set
+    anywhere persistent for this shell.
+  - `JAVA_HOME` is set to `C:\Program Files\Java\jdk-20`, while the JDK first on
+    `PATH` is Eclipse Temurin 17. Not evaluated yet whether the Android Gradle
+    Plugin version Capacitor's Android template uses prefers one over the other
+    — worth checking when `cap add android` + a first Gradle build actually runs.
+  - **Bottom line:** native Android platform setup and builds can very likely
+    happen on this machine — nothing needs to move to the user's own separate
+    machine — but `ANDROID_HOME`/`ANDROID_SDK_ROOT` need to be pointed at
+    `D:\3_STUDY\0. Programming\Android SDK` (and its `platform-tools` /
+    `cmdline-tools\latest\bin` added to `PATH`) before `npx cap add android` and
+    `npx cap sync` will work. This wasn't done as part of this step since it's an
+    OS-level environment change outside this repo — flagged for the user to
+    decide (set permanently vs. session-only) before the next step.
+- **Dependency note:** `npm install -D @capacitor/cli` reported 3 moderate
+  `npm audit` findings, all transitive (via `xcode`, a sub-dependency of
+  `@capacitor/cli` used for iOS project manipulation — not relevant yet since
+  iOS hasn't been touched). The suggested `npm audit fix --force` would
+  downgrade `@capacitor/cli` to 8.4.3, a breaking change, so it was not applied
+  unprompted; flagging here rather than silently fixing or ignoring it.
+
 ## Open items for the user
-None — MVP complete.
+None — MVP complete except mobile porting, now in progress (see "Mobile porting"
+above). Before the next step (`npx cap add android`), decide: set
+`ANDROID_HOME`/`ANDROID_SDK_ROOT` permanently (e.g. via Windows environment
+variables) or session-only; and whether to address the `@capacitor/cli` npm audit
+findings (breaking downgrade) now or defer.
