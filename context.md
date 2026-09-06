@@ -106,6 +106,12 @@ project-root/
       an unrelated, pre-existing Gradle bug — the project folder's "ê" breaks
       the wrapper script's own path detection. No APK produced yet. See "##
       Mobile porting" and "Open items" for full detail and options.
+- [ ] Mobile porting — project directory rename (2026-09-07): **blocked, not
+      complete.** Attempted `PROJECT_yêsh` → `PROJECT_yesh` from the parent
+      directory; failed on a file lock, very likely a lingering Vite dev
+      server (see "## Mobile porting" for the exact processes found). Nothing
+      force-killed. Rename retry and the `gradlew.bat` retry are both still
+      pending — see "Open items."
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -419,12 +425,38 @@ project-root/
   that bypasses `gradlew.bat`'s own path detection). **No debug APK was
   produced.**
 
+- **Directory rename attempt (2026-09-07) — failed, blocked on a file lock, not
+  forced:** attempted `Rename-Item` on the project folder
+  (`PROJECT_yêsh` → `PROJECT_yesh`) from the parent directory (`D:\4_JOBS`) via
+  PowerShell, per the user's decision to go with the standard fix for the
+  `gradlew.bat` non-ASCII-path bug above. Failed with: *"The process cannot
+  access the file because it is being used by another process."* Found the
+  likely cause: two lingering Node processes with command lines referencing
+  this project —
+  - PID 17012: `node ...\PROJECT_yêsh\node_modules\.bin\..\vite\bin\vite.js`
+    (a Vite dev server)
+  - PID 17272: `npm-cli.js r...` (almost certainly its `npm run dev` parent)
+
+  These likely hold an open file-watcher/handle somewhere under the directory,
+  which Windows uses to block a rename of an ancestor folder. No Gradle daemon
+  was found running (consistent with the previous build attempt failing before
+  Gradle itself ever started). **Nothing was force-killed and no destructive
+  action was taken** — per CLAUDE.md, stopping to ask rather than terminating a
+  process that may be something the user is actively using (e.g., to view the
+  app locally, as covered in an earlier session). The directory itself was
+  confirmed intact and untouched afterward (`Rename-Item` failed atomically,
+  `git status` clean, all files present). **The rename has not happened yet —
+  this step is still blocked**, one level earlier than the `gradlew.bat` bug
+  itself.
+
 ## Open items for the user
-The JDK question is resolved (no action needed). New open item: **the debug
-build is blocked by `gradlew.bat`'s non-ASCII-path bug** (project folder name
-contains "ê") — decide how to proceed: (a) rename/move the project directory to
-an ASCII-only path (the standard fix, but a real structural change worth doing
-deliberately), (b) try a workaround that avoids relying on `gradlew.bat`'s own
-path detection (e.g., invoking the wrapper jar directly with an explicit
-correct classpath), or (c) something else. Next step is blocked until this is
-decided.
+**Blocked on a file lock, not yet the `gradlew.bat` bug itself:** renaming
+`PROJECT_yêsh` → `PROJECT_yesh` failed because something (very likely the
+lingering Vite dev server, PID 17012, and/or its `npm run dev` wrapper, PID
+17272 — see note above) still has a handle open somewhere under the directory.
+Decide how to proceed: (a) close that dev server yourself (e.g., the terminal
+tab/window it's running in) and let the rename be retried, (b) explicitly
+authorize stopping those two processes so the rename can be retried, or (c)
+something else (e.g., reboot, which would clear any lock). Once the rename
+succeeds, the retry of `gradlew.bat assembleDebug` from the new path is still
+the next actual step.
