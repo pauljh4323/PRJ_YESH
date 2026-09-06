@@ -100,6 +100,12 @@ project-root/
       exclude `local.properties`/`.gradle/`/`build/`. No Gradle build or
       emulator run attempted yet (next step). See "## Mobile porting" for
       full detail.
+- [ ] Mobile porting — first debug Gradle build (2026-09-06): **blocked, not
+      complete.** JDK 20 vs. Temurin 17 question resolved (JDK 20 is
+      compatible, no fix needed) but `gradlew.bat assembleDebug` fails due to
+      an unrelated, pre-existing Gradle bug — the project folder's "ê" breaks
+      the wrapper script's own path detection. No APK produced yet. See "##
+      Mobile porting" and "Open items" for full detail and options.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -378,8 +384,47 @@ project-root/
   transitive (via `xcode`, a sub-dependency used for iOS project manipulation —
   not relevant yet since iOS hasn't been touched). Left alone as decided — no
   dependency changes.
+- **JDK 20 vs. Temurin 17 — resolved, no fix needed (2026-09-06):** checked
+  `android/build.gradle` (AGP `8.13.0`) and `gradle-wrapper.properties` (Gradle
+  `8.14.3`) against official docs
+  ([Android Gradle plugin release notes](https://developer.android.com/build/releases/agp-8-13-0-release-notes),
+  [Java versions in Android builds](https://developer.android.com/build/jdks),
+  [Gradle compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html)):
+  AGP 8.x requires **JDK 17 or higher** to run Gradle, and Gradle has supported
+  running on JDK 20 since Gradle 8.3 (this project is on 8.14.3). So `JAVA_HOME`
+  pointing at JDK 20 satisfies both requirements — **no build-scoped
+  `org.gradle.java.home` override and no system-wide `JAVA_HOME` change were
+  needed.** This resolves the open question from the previous step.
+- **First debug build attempt (2026-09-06) — failed, unrelated to the JDK
+  question:** `gradlew.bat assembleDebug` (tried via both Git Bash and
+  PowerShell, with `ANDROID_HOME`/`ANDROID_SDK_ROOT` correctly set in-session)
+  failed immediately with:
+  `Error: Unable to access jarfile D:\4_JOBS\PROJECT_yesh\android\\gradle\wrapper\gradle-wrapper.jar`
+  — note **"yesh" not "yêsh"**. `gradlew.bat`'s own internal `%~dp0`-based path
+  detection (a Windows batch-script mechanism, not anything in this project's
+  code) mangles the "ê" in the project folder name `PROJECT_yêsh`, producing a
+  path that doesn't exist (the real jar file was confirmed present and intact
+  at the correct, un-mangled path). This reproduced identically from both Git
+  Bash and PowerShell, ruling out a shell-specific quoting issue — it's
+  `gradlew.bat`/`cmd.exe`'s own handling of non-ASCII characters in the batch
+  interpreter. Confirmed via search this is a known, longstanding, unresolved
+  Gradle issue:
+  [gradle/gradle#15977 "Could not start Gradle wrapper on Windows if path
+  contains letters with accents"](https://github.com/gradle/gradle/issues/15977).
+  The commonly cited fix is to move/rename the project to an ASCII-only path —
+  a significant, hard-to-cleanly-reverse structural change (affects the git
+  working copy location, any saved shortcuts/tool configs, etc.), so per
+  CLAUDE.md this was **not** done unilaterally; stopped to ask instead of
+  guess-fixing further (e.g., inventing a nonstandard `java -cp` invocation
+  that bypasses `gradlew.bat`'s own path detection). **No debug APK was
+  produced.**
 
 ## Open items for the user
-None outstanding for this step. Before the next step (first real Gradle
-build/emulator run): the JDK 20 vs. Temurin 17 question above is still open and
-worth resolving if the build fails or picks the wrong one.
+The JDK question is resolved (no action needed). New open item: **the debug
+build is blocked by `gradlew.bat`'s non-ASCII-path bug** (project folder name
+contains "ê") — decide how to proceed: (a) rename/move the project directory to
+an ASCII-only path (the standard fix, but a real structural change worth doing
+deliberately), (b) try a workaround that avoids relying on `gradlew.bat`'s own
+path detection (e.g., invoking the wrapper jar directly with an explicit
+correct classpath), or (c) something else. Next step is blocked until this is
+decided.
