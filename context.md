@@ -92,6 +92,14 @@ project-root/
       (webDir "dist" confirmed), `npm run build` verified. No android/ios
       platform added yet. See "## Mobile porting" section for full detail and
       the Android tooling check result.
+- [x] Mobile porting — Android platform added (2026-09-06): `ANDROID_HOME`/
+      `ANDROID_SDK_ROOT` set permanently (Windows User env vars, via
+      `[Environment]::SetEnvironmentVariable`, not `setx`) and PATH updated;
+      `@capacitor/android` installed; `npx cap add android` + `npx cap sync
+      android` completed cleanly; `android/.gitignore` confirmed to correctly
+      exclude `local.properties`/`.gradle/`/`build/`. No Gradle build or
+      emulator run attempted yet (next step). See "## Mobile porting" for
+      full detail.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -282,11 +290,12 @@ project-root/
 - **App name:** Oracle Machine
 - **App ID:** com.pauljh4323.oraclemachine
 - **Priority platform:** Android first (iOS not evaluated yet).
-- **Current status (2026-09-06):** `@capacitor/core` and `@capacitor/cli` (dev
-  dependency) installed; `npx cap init` run non-interactively; `capacitor.config.json`
-  generated with `webDir: "dist"`, confirmed to match Vite's build output. Native
-  `android/`/`ios/` platform folders have **not** been added yet — that's the next
-  step. No existing game code/components/logic were touched for this.
+- **Current status (2026-09-06):** `@capacitor/core`, `@capacitor/cli` (dev
+  dependency), and `@capacitor/android` installed; `npx cap init` run
+  non-interactively; `capacitor.config.json` generated with `webDir: "dist"`,
+  confirmed to match Vite's build output. The native `android/` platform has now
+  been **added and synced** (see below) — `ios/` still not added. No existing
+  game code/components/logic were touched for any of this.
 - **Android tooling check (this machine, 2026-09-06):** `ANDROID_HOME` /
   `ANDROID_SDK_ROOT` are **not set** in the shell, and `adb`/`sdkmanager`/`gradle`
   are **not on PATH** — so naive auto-detection looks like "nothing installed."
@@ -310,24 +319,67 @@ project-root/
     `PATH` is Eclipse Temurin 17. Not evaluated yet whether the Android Gradle
     Plugin version Capacitor's Android template uses prefers one over the other
     — worth checking when `cap add android` + a first Gradle build actually runs.
-  - **Bottom line:** native Android platform setup and builds can very likely
-    happen on this machine — nothing needs to move to the user's own separate
-    machine — but `ANDROID_HOME`/`ANDROID_SDK_ROOT` need to be pointed at
-    `D:\3_STUDY\0. Programming\Android SDK` (and its `platform-tools` /
-    `cmdline-tools\latest\bin` added to `PATH`) before `npx cap add android` and
-    `npx cap sync` will work. This wasn't done as part of this step since it's an
-    OS-level environment change outside this repo — flagged for the user to
-    decide (set permanently vs. session-only) before the next step.
-- **Dependency note:** `npm install -D @capacitor/cli` reported 3 moderate
-  `npm audit` findings, all transitive (via `xcode`, a sub-dependency of
-  `@capacitor/cli` used for iOS project manipulation — not relevant yet since
-  iOS hasn't been touched). The suggested `npm audit fix --force` would
-  downgrade `@capacitor/cli` to 8.4.3, a breaking change, so it was not applied
-  unprompted; flagging here rather than silently fixing or ignoring it.
+  - **Resolved (2026-09-06):** `ANDROID_HOME` and `ANDROID_SDK_ROOT` are now set
+    **permanently at the Windows User level** to
+    `D:\3_STUDY\0. Programming\Android SDK`, and `%ANDROID_HOME%\platform-tools`
+    + `%ANDROID_HOME%\cmdline-tools\latest\bin` were appended to the **User
+    PATH** (as literal absolute paths, not a `%ANDROID_HOME%` token — simpler
+    and avoids any expansion ambiguity). Method: PowerShell's
+    `[Environment]::SetEnvironmentVariable(name, value, 'User')`, **not**
+    `setx PATH "..."` — `setx` overwriting PATH directly risks silent
+    truncation past 1024 characters, which is a real risk on a typical Windows
+    PATH; the `[Environment]` API has no such limit. The existing User PATH was
+    read first and the two new entries were only appended if not already
+    present (idempotent — safe to re-run). Verified via a **fresh** PowerShell
+    call (not reusing in-memory state) that the registry now holds the new
+    values and the PATH additions are present (630 chars total — nowhere near
+    any truncation risk here in practice, but the safe method was used
+    regardless, as asked). Also set in the then-current PowerShell session
+    (`$env:ANDROID_HOME` etc.) and confirmed `adb version` /
+    `sdkmanager --version` resolved immediately without a new terminal.
+  - **Caveat found:** this project's Bash tool (Git Bash) runs in a separate,
+    already-initialized shell that does **not** pick up newly-written User
+    registry environment variables mid-session (confirmed: a fresh Bash call
+    right after the PowerShell step still showed empty `ANDROID_HOME` and no
+    `adb` on `PATH`). So for every Bash command that needed the SDK (`cap add
+    android`, `cap sync android`), `ANDROID_HOME`/`ANDROID_SDK_ROOT`/`PATH` were
+    explicitly re-exported at the top of that same shell invocation as a
+    defensive measure. The permanent User-level registry values are still the
+    right long-term fix — any genuinely new terminal/process the user opens
+    from now on (including future Claude Code sessions, most likely) should
+    inherit them automatically without needing this workaround.
+  - `JAVA_HOME` (`C:\Program Files\Java\jdk-20`) vs. Temurin 17 first on `PATH`
+    is still an **open question** — not evaluated in this step, since no Gradle
+    build was attempted (deliberately deferred to the next step, which is the
+    first real build/emulator run).
+- **Native Android platform (2026-09-06):** `npx cap add android` initially
+  failed with "Could not find the android platform" — it requires the
+  `@capacitor/android` npm package (contains the platform template), which
+  wasn't installed yet. This is a direct, necessary prerequisite of the exact
+  command the task asked for (the CLI's own error names the fix), not a scope
+  addition, so it was installed (`npm install @capacitor/android`) without
+  pausing to ask. After that, `npx cap add android` and `npx cap sync android`
+  both completed cleanly (web assets copied, plugins updated, Gradle synced —
+  `cap add` already performs an implicit sync; the explicit `cap sync android`
+  afterward was a clean no-op confirmation, also per the task). No Gradle
+  *build* or emulator run was attempted, per the scope limit.
+- **`android/.gitignore` check:** Capacitor auto-generated the standard
+  `github/gitignore` Android template. Confirmed via `git check-ignore -v`
+  (using real temporary directories where needed, since a non-existent path
+  can't be confirmed against a directory-only pattern like `build/`) that
+  `local.properties` (doesn't exist yet — no Gradle build has run to generate
+  it, but the pattern is present and matches), `.gradle/`, and `build/` (matches
+  both `android/build` and `android/app/build`) are all correctly excluded.
+  Also confirmed with `git add -n -A` that no machine-specific files would
+  actually be staged. No changes needed to `android/.gitignore` — it already
+  covers everything required.
+- **Dependency note:** `npm install -D @capacitor/cli` (and, this step,
+  `@capacitor/android`) report the same 3 moderate `npm audit` findings, all
+  transitive (via `xcode`, a sub-dependency used for iOS project manipulation —
+  not relevant yet since iOS hasn't been touched). Left alone as decided — no
+  dependency changes.
 
 ## Open items for the user
-None — MVP complete except mobile porting, now in progress (see "Mobile porting"
-above). Before the next step (`npx cap add android`), decide: set
-`ANDROID_HOME`/`ANDROID_SDK_ROOT` permanently (e.g. via Windows environment
-variables) or session-only; and whether to address the `@capacitor/cli` npm audit
-findings (breaking downgrade) now or defer.
+None outstanding for this step. Before the next step (first real Gradle
+build/emulator run): the JDK 20 vs. Temurin 17 question above is still open and
+worth resolving if the build fails or picks the wrong one.
