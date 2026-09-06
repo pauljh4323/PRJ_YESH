@@ -106,12 +106,14 @@ project-root/
       an unrelated, pre-existing Gradle bug — the project folder's "ê" breaks
       the wrapper script's own path detection. No APK produced yet. See "##
       Mobile porting" and "Open items" for full detail and options.
-- [ ] Mobile porting — project directory rename (2026-09-07): **blocked, not
-      complete.** Attempted `PROJECT_yêsh` → `PROJECT_yesh` from the parent
-      directory; failed on a file lock, very likely a lingering Vite dev
-      server (see "## Mobile porting" for the exact processes found). Nothing
-      force-killed. Rename retry and the `gradlew.bat` retry are both still
-      pending — see "Open items."
+- [ ] Mobile porting — project directory rename (2026-09-07): **still blocked,
+      not complete.** User authorized killing PID 17012/17272 (re-verified
+      before killing); both confirmed gone, but the rename still failed
+      identically. The lock now appears tied to this Claude Code session's own
+      working-directory handling, not a user-level process — likely needs a
+      fresh session/terminal (or a reboot) to actually perform the rename.
+      Nothing force-killed beyond the two authorized PIDs. See "## Mobile
+      porting" and "Open items" for full detail.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -449,14 +451,55 @@ project-root/
   this step is still blocked**, one level earlier than the `gradlew.bat` bug
   itself.
 
+- **Directory rename attempt #2 (2026-09-07) — processes killed per explicit
+  approval, rename still failed, a different lock:** the user explicitly
+  authorized terminating PID 17012 and PID 17272. Before touching either,
+  re-verified both PIDs still existed and their full command lines still
+  matched exactly what was previously reported (`... vite\bin\vite.js` under
+  this project's `node_modules`, and `npm-cli.js run dev`) — confirmed via
+  `Get-CimInstance Win32_Process`, no drift/PID reuse. Stopped PID 17012
+  (`Stop-Process -Force`); PID 17272 had already exited on its own by the time
+  it was targeted (likely as a natural consequence of its child, 17012,
+  exiting) — nothing unexpected was found or touched, only these two.
+  - Retried `Rename-Item` from the parent directory: **still failed**, same
+    error ("The process cannot access the file because it is being used by
+    another process."). So the original two Node processes were **not** the
+    (only) cause.
+  - Investigated further (read-only, no further processes touched): found one
+    other process with the project path in its command line —
+    `powershell.exe` (a `-NoProfile -NonInteractive` invocation matching this
+    tool's own PowerShell command execution). Traced it: that specific PID had
+    already exited by the next check (each tool invocation appears to spawn a
+    short-lived PowerShell process whose working directory is reset to this
+    project folder for every call — the "Shell cwd was reset to
+    D:\4_JOBS\PROJECT_yêsh" message seen after every command in this session).
+    A broader process scan for shells/editors (bash, mintty, VS Code, node,
+    java, explorer) found nothing else referencing the folder.
+  - Retried the rename a third time after a 1-second pause (in case of a
+    transient race as the previous short-lived process exited) — **failed
+    identically again.**
+  - **Conclusion: the lock is not coming from the two authorized processes (both
+    confirmed gone), nor from any other identifiable, persistent user process.**
+    It's most consistent with this tool session itself continuously anchoring
+    a working-directory handle on this exact folder path between commands
+    (visible via the repeated "Shell cwd was reset to ..." messages) — which
+    is not something safely actionable from inside a command run by that same
+    session. Per CLAUDE.md and the task's own instruction, **stopping here
+    rather than attempting further workarounds** (e.g., killing unidentified
+    processes, editing the harness's own environment). Directory confirmed
+    fully intact throughout (`git status` clean, all files present, `git
+    remote -v` unchanged). **No rename has occurred; no build retried this
+    round.**
+
 ## Open items for the user
-**Blocked on a file lock, not yet the `gradlew.bat` bug itself:** renaming
-`PROJECT_yêsh` → `PROJECT_yesh` failed because something (very likely the
-lingering Vite dev server, PID 17012, and/or its `npm run dev` wrapper, PID
-17272 — see note above) still has a handle open somewhere under the directory.
-Decide how to proceed: (a) close that dev server yourself (e.g., the terminal
-tab/window it's running in) and let the rename be retried, (b) explicitly
-authorize stopping those two processes so the rename can be retried, or (c)
-something else (e.g., reboot, which would clear any lock). Once the rename
-succeeds, the retry of `gradlew.bat assembleDebug` from the new path is still
-the next actual step.
+**Still blocked on a file lock — not the two originally-suspected processes.**
+Those were confirmed killed (or already exited) with no effect; the lock
+appears tied to how this Claude Code session itself holds the project
+directory as an anchored working directory between tool calls, which isn't
+something fixable from inside a command in that same session. Likely real
+fixes: (a) end/restart this Claude Code session (or the terminal it runs in)
+and perform the rename from a completely separate, fresh process (e.g., a
+plain Explorer rename, or a new terminal window not tied to this session), or
+(b) reboot. Once the folder is renamed, the pending steps are unchanged: sanity
+-check no tracked file hardcodes the old path, confirm git works from the new
+path, and retry `android\gradlew.bat assembleDebug`.
