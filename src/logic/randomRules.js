@@ -4,6 +4,8 @@
 //
 // Rule definitions: see context.md "Per-slot generation rules".
 
+import { KS_HANGUL_2350 } from './ksHangul2350.js'
+
 const DIGITS = '0123456789'
 const UPPER_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const ARROWS = ['↑', '↓', '←', '→']
@@ -17,10 +19,6 @@ export const SPECIAL_SYMBOLS = [
   '★', '☆', '♥', '♡', '♠', '♣', '♦', '●', '○', '■', '□', '▲', '▼', '◆',
   '◇', '☀', '☁', '☂', '☃', '✓', '✗', '♪', '♫', '※', '◎', '△', '▽',
 ]
-
-// Full modern Hangul syllable block: U+AC00 (가) – U+D7A3 (힣), 11,172 chars.
-const HANGUL_START = 0xac00
-const HANGUL_END = 0xd7a3
 
 /** Random integer in [0, max) */
 function randomIndex(max) {
@@ -50,10 +48,9 @@ export function generateC() {
   return pickChar(ARROWS)
 }
 
-/** Rule D: random modern Hangul syllable (가–힣). */
+/** Rule D: random commonly-used Hangul syllable (KS X 1001 완성형 set, 2,350 chars). */
 export function generateD() {
-  const codePoint = HANGUL_START + randomIndex(HANGUL_END - HANGUL_START + 1)
-  return String.fromCodePoint(codePoint)
+  return pickChar(KS_HANGUL_2350)
 }
 
 /** Rule E: random special symbol from SPECIAL_SYMBOLS. */

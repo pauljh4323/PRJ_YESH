@@ -35,7 +35,7 @@ must stay portable to make that easy.
 | A  | Random digit 0–9 |
 | B  | 50% digit 0–9, 50% uppercase letter A–Z |
 | C  | 30% digit 0–9, 30% uppercase letter A–Z, 40% arrow (↑ ↓ ← →) |
-| D  | Random modern Hangul syllable, full block 가–힣 (U+AC00–U+D7A3, 11,172 chars) |
+| D  | Random Hangul syllable from the KS X 1001 완성형 set (2,350 commonly-used syllables — see status log for source/citation), not the full U+AC00–U+D7A3 block |
 | E  | Random special symbol — keyboard specials + unicode/emoji symbols (e.g. ★ ♡ ♠ ♣). Starter list below, adjustable: `! @ # $ % ^ & * ( ) _ + - = [ ] { } : ; " ' < > , . ? / ~ \` | \` plus `★ ☆ ♥ ♡ ♠ ♣ ♦ ● ○ ■ □ ▲ ▼ ◆ ◇ ☀ ☁ ☂ ☃ ✓ ✗ ♪ ♫ ※ ◎ △ ▽` |
 
 ## Planned structure
@@ -82,6 +82,11 @@ project-root/
 - [x] Post-MVP tweak (2026-09-03): TextBox copy finalized to "ORACLE_MACHINE"
       (was "PRAY"); slot character color set to `#4fc3f7`; reveal-animation
       scramble duration doubled from 450ms to 900ms (stagger unchanged at 110ms).
+- [x] Post-MVP tweak (2026-09-03): Output button text changed from "출력" to
+      "PRAY" (TextBox is unaffected and still reads "ORACLE_MACHINE"); Rule D
+      restricted from the full U+AC00–U+D7A3 block to the KS X 1001 완성형 set
+      of 2,350 commonly-used syllables (see notes below for source); scramble
+      duration doubled again, 900ms → 1800ms (stagger still unchanged, 110ms).
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -225,6 +230,46 @@ project-root/
 - Diff scope confirmed minimal: only `TextBox.jsx`, `App.css`, and `App.jsx`
   changed (`git diff --stat`) — `randomRules.js`, layout/spacing, stagger
   timing, and button styling untouched.
+
+### Post-MVP tweak notes — button text, Rule D restriction, scramble duration
+- `OutputButton.jsx`: label changed from "출력" to "PRAY". `TextBox.jsx` was
+  deliberately left untouched (still "ORACLE_MACHINE") — the two are visually
+  similar copy now but serve different, unrelated purposes (decorative text vs.
+  the action button).
+- **Rule D data source (for future reference):** the task required the exact,
+  canonical KS X 1001 (formerly KS C 5601) "완성형" 2,350-syllable set — not an
+  approximation — and to stop and ask if no verifiable source could be found.
+  Rather than hand-type or guess this list, it was extracted programmatically:
+  Node's built-in ICU `TextDecoder('euc-kr')` implements the Unicode
+  Consortium's own canonical mapping table for KS X 1001
+  (https://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/KSC/KSX1001.TXT).
+  Every possible EUC-KR byte pair was decoded and the ones that produced a
+  single Hangul syllable in U+AC00–U+D7A3 were kept. Result: exactly 2,350
+  unique syllables, zero duplicates, and 100% of them fell inside the KS X 1001
+  Hangul block's documented row range (rows 16–40, i.e. EUC-KR lead byte
+  0xB0–0xC8) — a strong structural cross-check that this matches the real
+  standard rather than an artifact of the extraction method. This required no
+  new npm dependency and no internet fetch (ICU ships with Node). The generated
+  list is committed as a static array in
+  [ksHangul2350.js](src/logic/ksHangul2350.js) (not regenerated at runtime), with
+  the extraction method and source cited in that file's header comment.
+  `generateD()` in [randomRules.js](src/logic/randomRules.js) now just picks a
+  random entry from it. Since this source was found and verified (not merely
+  assumed), this proceeded without pausing to ask — flagging here in detail so
+  it's easy to double-check or swap out later if a discrepancy ever turns up.
+- `App.jsx`: `SCRAMBLE_DURATION_MS` changed from `900` to `1800` (doubled again,
+  as asked); `STAGGER_MS` unchanged at `110`. Verified on the dev server: at
+  ~1.5s after clicking, the button was still disabled and slots still
+  scrambling (the prior 900ms setting would have already settled by ~1.34s at
+  the latest slot), confirming the new duration; settled around ~2.5s with
+  plausible values, including a Rule-D Hangul syllable, and the button back to
+  its normal enabled state.
+- Also re-verified with a throwaway Node script (run and deleted, no dependency
+  added): 50,000 `generateD()` samples, 0 draws outside `KS_HANGUL_2350`, and
+  all 2,350 syllables were drawn at least once.
+- Diff scope: `App.jsx`, `OutputButton.jsx`, `randomRules.js` changed, plus the
+  new `ksHangul2350.js` data file. `TextBox.jsx`, `App.css` (slot color/border),
+  stagger timing, and Rules A/B/C/E were not touched.
 
 ## Open items for the user
 None — MVP complete.
