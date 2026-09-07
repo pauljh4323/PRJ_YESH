@@ -132,6 +132,17 @@ project-root/
       to compile; no JDK 21+ exists on this machine (only Temurin 17 and JDK
       20 found). No APK produced. See "## Mobile porting" and "Open items" for
       full detail and options.
+- [x] Mobile porting — **first successful debug APK build** (2026-09-07):
+      installed Eclipse Temurin 21 via winget, wired it up project-scoped via
+      `org.gradle.java.home` in `android/gradle.properties` (system-wide
+      `JAVA_HOME` left as JDK 20, as instructed). `gradlew.bat assembleDebug`
+      **succeeded**. APK at
+      `android/app/build/outputs/apk/debug/app-debug.apk` (correctly
+      gitignored). **Caveat:** the Temurin 21 installer itself changed the
+      system-wide `JAVA_HOME`/`PATH` as a side effect (against instructions);
+      caught immediately, but this session lacks the admin permission to
+      revert it — needs the user to do so from an elevated session. See "##
+      Mobile porting" and "Open items" for the exact revert commands.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -607,17 +618,72 @@ project-root/
     version wasn't attempted either — that's a real product/dependency
     decision, not a safe guess). Stopping to ask. **No debug APK produced.**
 
+- **JDK 21 installed, wired up project-scoped, build SUCCEEDS (2026-09-07):**
+  - Installed Eclipse Temurin 21 via `winget install --id
+    EclipseAdoptium.Temurin.21.JDK -e`, resolving from `winget search
+    EclipseAdoptium` to confirm the exact package ID/version first
+    (`21.0.12.101`). Winget fetched it from the official
+    `adoptium/temurin21-binaries` GitHub releases and verified the installer
+    hash before installing — an official, verifiable source, no manual
+    download needed. Installed to
+    `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`; verified with
+    `java -version` directly against that path (`openjdk version "21.0.12.1"`).
+  - Added `org.gradle.java.home=C:/Program Files/Eclipse
+    Adoptium/jdk-21.0.12.101-hotspot` to `android/gradle.properties` — scoped
+    to this project's Gradle builds only, as instructed, rather than changing
+    the system-wide `JAVA_HOME` (which was meant to stay JDK 20).
+  - Retried `gradlew.bat assembleDebug`: **BUILD SUCCESSFUL in 3m 16s, 93
+    actionable tasks (55 executed, 38 up-to-date).** No further errors — the
+    JDK 21 requirement was the last blocker. **Debug APK produced:**
+    `android/app/build/outputs/apk/debug/app-debug.apk` (4,195,439 bytes).
+    Confirmed it's correctly excluded from git (`git check-ignore -v` matches
+    the `build/` rule in `android/.gitignore`) — not committed, as instructed.
+  - **Important deviation to flag — not done deliberately, and only partially
+    reversible from this session:** the Temurin 21 MSI installer (run via
+    winget) **silently changed the system-wide (Machine-level) `JAVA_HOME`**
+    from `C:\Program Files\Java\jdk-20` to
+    `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot\`, **and added
+    its `bin` directory to the system-wide (Machine-level) `PATH`** — both
+    explicitly against the task's instruction to leave those untouched. This
+    was the installer's own default behavior (common for Adoptium's MSI —
+    it typically sets `JAVA_HOME`/`PATH` at the Machine scope unless told not
+    to), not something requested or done deliberately here. **Caught it
+    immediately** by re-checking `JAVA_HOME`/`PATH` right after installing,
+    before moving on. Attempted to revert both right away via
+    `[Environment]::SetEnvironmentVariable(..., 'Machine')`, but **this
+    session's PowerShell process does not have the elevated/admin permission
+    required to write `HKLM` environment variables** — both revert attempts
+    failed with *"Requested registry access is not allowed."* No further
+    escalation was attempted (e.g. trying to self-elevate) — flagging this
+    clearly instead, per CLAUDE.md, rather than trying more things to force
+    permissions I don't have.
+    - **Net effect right now:** any *other* Java-based tool/project on this
+      machine that reads `JAVA_HOME` (and has no override of its own) will now
+      resolve to JDK 21 instead of JDK 20, machine-wide, until this is
+      reverted. This project itself is unaffected either way, since
+      `org.gradle.java.home` in `gradle.properties` takes precedence for
+      Gradle specifically, regardless of `JAVA_HOME`.
+    - **To revert (needs an elevated/admin session — this one can't):** open
+      PowerShell **as Administrator** and run:
+      ```powershell
+      [Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Java\jdk-20', 'Machine')
+      $p = [Environment]::GetEnvironmentVariable('PATH','Machine') -split ';' | Where-Object { $_ -notmatch 'jdk-21.0.12.101-hotspot' }
+      [Environment]::SetEnvironmentVariable('PATH', ($p -join ';'), 'Machine')
+      ```
+      or via the GUI: System Properties → Environment Variables → System
+      variables → edit `JAVA_HOME` back to `C:\Program Files\Java\jdk-20`, and
+      remove the `...\jdk-21.0.12.101-hotspot\bin` entry from `Path`.
+
 ## Open items for the user
-**The network/download issue is fully resolved** (Step A's `networkTimeout`
-raise worked; no need for Step B). **New blocker: no JDK 21+ is installed on
-this machine**, and `@capacitor/android@8.5.1`'s own vendored Gradle module
-requires one to compile. Options to consider: (a) install a JDK 21+ (e.g.
-Eclipse Temurin 21) — the direct fix, and this session can do it if you'd like,
-but installing new software felt like something to confirm first rather than
-just doing; (b) pin `@capacitor/android`/`@capacitor/core` to an older version
-line that supports JDK 17-20, if one exists and is otherwise acceptable — not
-investigated, since picking a specific downgrade target is a real decision;
-(c) something else. Once a compatible JDK is available (however that's
-resolved), retrying `android\gradlew.bat assembleDebug` is still the next
-actual step — the network, `ANDROID_HOME`, and the path are all confirmed
-working at this point.
+**The debug build now succeeds** — see above for the APK path. **One thing
+needs your attention (not something this session could fix):** installing
+Temurin 21 caused its MSI installer to change the **system-wide** `JAVA_HOME`
+and `PATH` to point at JDK 21, despite being asked not to — this session
+caught it immediately and tried to revert it, but lacks the admin/elevated
+permission needed to write `HKLM` environment variables. See the exact revert
+commands just above. Until reverted, other Java tooling on this machine that
+relies on the default `JAVA_HOME` (outside this project, which is unaffected
+via its own `org.gradle.java.home`) will use JDK 21 instead of JDK 20.
+Everything else about mobile porting is now unblocked — the next step would be
+running the debug APK on the emulator (the `Pixel_3a_API_34` AVD found earlier)
+or a device.
