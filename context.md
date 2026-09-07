@@ -124,6 +124,14 @@ project-root/
       the Gradle 8.14.3 distribution times out due to slow (~50 KB/s)
       throughput to `services.gradle.org` from this network. No APK produced.
       See "## Mobile porting" and "Open items" for full detail and options.
+- [ ] Mobile porting — third debug build attempt, network fixed, JDK 21
+      blocker found (2026-09-07): **blocked, not complete, but real progress.**
+      Raised `networkTimeout` to 300000ms — the Gradle distribution download
+      now completes fully. Build then failed at `compileDebugJavaWithJavac`:
+      `@capacitor/android@8.5.1`'s own vendored Gradle module requires JDK 21+
+      to compile; no JDK 21+ exists on this machine (only Temurin 17 and JDK
+      20 found). No APK produced. See "## Mobile porting" and "Open items" for
+      full detail and options.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -546,17 +554,70 @@ project-root/
   all of those are real options but involve tradeoffs/config changes the user
   should decide on, not something to silently pick.
 
+- **Step A (network timeout fix) — worked (2026-09-07):** raised
+  `networkTimeout` in `android/gradle/wrapper/gradle-wrapper.properties` from
+  `10000` (10s) to `300000` (5 minutes). Chose higher than the task's `180000`
+  example because the earlier `curl` diagnostic showed an initial fast burst
+  then an apparent dead stall well past 10s within a 20s window — evidence of
+  actual multi-second-plus stalls, not just a uniformly slow-but-steady
+  trickle, so extra headroom seemed warranted.
+  - Retried `gradlew.bat assembleDebug`: **the Gradle 8.14.3 distribution
+    downloaded successfully to 100% this time** (progress bar completed
+    cleanly, no timeout) — confirms Step A fixed the network/download problem.
+    Gradle also auto-downloaded two additional missing SDK components (Android
+    SDK Build-Tools 35, Android SDK Platform 36 — needed because
+    `compileSdkVersion = 36` in `variables.gradle` exceeded what was previously
+    installed, 33/34) via the SDK's own license-accept-and-install flow —
+    those also completed without any network issue, further confirming the
+    connection is fine for these transfer sizes now. **Step B (manual zip
+    download) was not needed.**
+- **New, unrelated, genuinely blocking failure — no JDK 21+ available
+  (2026-09-07):** the build then proceeded through dozens of Gradle tasks and
+  failed at `:capacitor-android:compileDebugJavaWithJavac`:
+  ```
+  Execution failed for task ':capacitor-android:compileDebugJavaWithJavac'.
+  > Java compilation initialization error
+      error: invalid source release: 21
+  ```
+  Root-caused (read-only investigation, nothing edited): the `capacitor-android`
+  Gradle module is `node_modules/@capacitor/android/capacitor/build.gradle` —
+  **vendored code from the `@capacitor/android` npm package (currently
+  `8.5.1`), not anything in this repo** — which explicitly declares:
+  ```
+  sourceCompatibility JavaVersion.VERSION_21
+  targetCompatibility JavaVersion.VERSION_21
+  ```
+  `javac` cannot target a source/target release higher than the JDK version
+  it's actually running under, so this requires a JDK **≥ 21** to compile —
+  strictly more than the "17 or higher to run Gradle" requirement resolved
+  earlier (that answered "can Gradle itself run on JDK 20", not "can javac
+  compile Java-21-level source on JDK 20" — it can't).
+  - Checked every JDK findable on this machine: Eclipse Temurin 17 (both the
+    standalone install and Android Studio's bundled JBR, confirmed
+    `17.0.6`/`17.0.8.1`), and JDK 20 (`JAVA_HOME`). **No JDK 21 or newer exists
+    anywhere found on this machine.** Switching to Temurin 17 (the
+    previously-discussed alternative) would make this *worse*, not better —
+    17 < 20 < 21.
+  - This is a **new, different, genuinely blocking gap** — not a network issue
+    (Step A/B territory) and not something fixable by any Gradle/project
+    config change, since the requirement lives inside a third-party vendored
+    dependency. Installing a new JDK is a real environment change with its own
+    footprint, so per CLAUDE.md this was **not** done unilaterally (and
+    downgrading `@capacitor/android` to guess at an older, JDK-17-compatible
+    version wasn't attempted either — that's a real product/dependency
+    decision, not a safe guess). Stopping to ask. **No debug APK produced.**
+
 ## Open items for the user
-**The path/rename saga is fully resolved** — no action needed there. **New
-blocker: downloading the Gradle 8.14.3 distribution times out** due to slow
-(~50 KB/s) throughput to `services.gradle.org` from this machine/network, not
-anything in the project. Options to consider: (a) raise
-`networkTimeout` in `android/gradle/wrapper/gradle-wrapper.properties` (a
-config change, low risk, but only helps if the connection is merely slow, not
-if it's actually blocked/dropping), (b) try again later or from a different
-network in case this is transient/rate-limited, (c) manually download
-`gradle-8.14.3-all.zip` from another source and place it in the Gradle wrapper
-cache to skip the in-band download entirely, or (d) something else. Once the
-distribution is available, retrying `android\gradlew.bat assembleDebug` is
-still the next actual step — everything else about the build setup (JDK,
-`ANDROID_HOME`, the path) is confirmed correct at this point.
+**The network/download issue is fully resolved** (Step A's `networkTimeout`
+raise worked; no need for Step B). **New blocker: no JDK 21+ is installed on
+this machine**, and `@capacitor/android@8.5.1`'s own vendored Gradle module
+requires one to compile. Options to consider: (a) install a JDK 21+ (e.g.
+Eclipse Temurin 21) — the direct fix, and this session can do it if you'd like,
+but installing new software felt like something to confirm first rather than
+just doing; (b) pin `@capacitor/android`/`@capacitor/core` to an older version
+line that supports JDK 17-20, if one exists and is otherwise acceptable — not
+investigated, since picking a specific downgrade target is a real decision;
+(c) something else. Once a compatible JDK is available (however that's
+resolved), retrying `android\gradlew.bat assembleDebug` is still the next
+actual step — the network, `ANDROID_HOME`, and the path are all confirmed
+working at this point.
