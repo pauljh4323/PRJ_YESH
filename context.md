@@ -975,15 +975,26 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
     fixed** — no `npm audit fix`, no dependency version changes — per the
     user's explicit instruction that this was investigation only.
 
+- **Reinstalled updated APK (new icon) on the physical device (2026-09-07):**
+  `adb devices -l` showed both the physical phone (`R3KYB05SARN`, status
+  `device`, authorized) and the emulator (`emulator-5554`) connected — only
+  the physical device was touched, per instructions. Confirmed the existing
+  `android/app/build/outputs/apk/debug/app-debug.apk` was already current (its
+  timestamp, 18:35, is newer than both `resources/icon.png` at 17:59 and the
+  regenerated `ic_launcher_foreground.png` at 18:34 — it's the same build
+  already verified with the border-free icon in the previous step) — no
+  rebuild needed. Installed with `adb -s R3KYB05SARN install -r
+  android/app/build/outputs/apk/debug/app-debug.apk` → `Success`. Confirmed
+  device model via `getprop ro.product.model`: **SM-S938N**. Confirmed via
+  `pm list packages` that `com.pauljh4323.oraclemachine` is present. App was
+  **not** launched, per instructions — left for the user. No emulator
+  interaction.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
-porting — phase closed" above. The debug APK is now sideloaded on both the
-emulator (as of the previous step, though it wasn't running at the time of
-this step) and a physical Samsung SM-S938N device — open it yourself on the
-phone whenever you're ready. The app icon is now the redesigned border-free ℵ
-symbol, confirmed clean on the emulator's home screen dock (no more cropped
-border) — the only remaining cosmetic detail is the launcher's own themed-icon
-tint ring, which is expected and outside this project's control. The npm audit
+porting — phase closed" above. The debug APK with the redesigned border-free ℵ
+icon is now installed on both the emulator and the physical Samsung SM-S938N
+device — open it yourself on the phone whenever you're ready. The npm audit
 critical finding (`tar`, nested under `@capacitor/assets`) has been
 investigated and documented above — dev-only exposure, not fixed, per your
 instruction to investigate only.
