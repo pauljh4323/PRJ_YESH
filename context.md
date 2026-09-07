@@ -815,10 +815,94 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
   via `pm list packages` that `com.pauljh4323.oraclemachine` is now present on
   the device. The app was **not** launched — left for the user to open
   themselves, as instructed. No emulator interaction in this step.
+- [x] Mobile porting — **new app icon applied** (2026-09-07): generated Android
+      launcher icons from `resources/icon.png` via `@capacitor/assets`,
+      rebuilt, and verified on the emulator's home screen dock. Icon is
+      correctly applied and recognizable; corner-cropping and an unexpected
+      themed-color ring are visible under this launcher's circular adaptive-
+      icon mask (flagged, not fixed, per instructions). See "## Mobile
+      porting" for full detail, including the audit-findings jump from the
+      new dev dependency and a note on emulator-launch reliability.
+
+- **New app icon applied via the official Capacitor asset generator
+  (2026-09-07):**
+  - **Source:** `resources/icon.png` — a 1024×1024 PNG provided by the user
+    (dark background, dashed blue border, blue ℵ symbol, colors matching
+    `#1e88e5`). Confirmed present before doing anything else, per instructions.
+    Committed as a real source asset (small, not a build artifact) — confirmed
+    it isn't gitignored (`git check-ignore` on it returns nothing).
+  - Installed `@capacitor/assets` as a dev dependency
+    (`npm install -D @capacitor/assets`). **Audit note:** this jumped the
+    project's `npm audit` findings from 3 moderate to **7 (3 moderate, 3 high,
+    1 critical)** — all newly transitive through `@capacitor/assets`'s own
+    dependency tree (`sharp`→libvips CVEs, no fix available; `tar` hardlink
+    path traversal, fix available but would downgrade `@capacitor/cli` — a
+    breaking change; `uuid`/`xcode`, same pre-existing moderate findings as
+    before). This dependency is dev-only, used solely for local one-time icon
+    generation — not bundled into the app or run in production. Not addressed
+    (no `npm audit fix --force`) — left alone per the same reasoning applied
+    to prior audit findings in this project, flagged here rather than silently
+    fixed or ignored.
+  - Ran `npx @capacitor/assets generate --android`: **74 files generated**,
+    692.56 KB total. Notably, the tool did **not** simply reuse the flat
+    1024×1024 image as-is for the modern adaptive-icon format — it split it
+    into a proper two-layer adaptive icon: `ic_launcher_foreground.png` (the
+    full flat image, including its own baked-in dark background and border)
+    and `ic_launcher_background.png` (plain white, since no separate
+    background source was supplied), referenced from
+    `mipmap-anydpi-v26/ic_launcher.xml` with a **16.7% inset on each layer**
+    (Android's standard adaptive-icon safe-zone convention). The legacy
+    square `ic_launcher.png`/`ic_launcher_round.png` (for surfaces that don't
+    use the adaptive format) are plain resized copies of the source — clean,
+    full border visible, no issues there. It also generated **splash screen
+    images** (light + dark, portrait + landscape, all densities) — this is
+    the standard default behavior of `generate --android` from one source
+    image, not something requested separately or chosen as an extra feature;
+    flagging it since it wasn't explicitly asked for. `AndroidManifest.xml`
+    was rewritten with the same `icon`/`roundIcon` references it already had
+    (no functional change) — only whitespace/formatting was normalized (blank
+    lines removed, self-closing-tag style) as a side effect of the tool
+    re-serializing the file; confirmed via `git diff`.
+  - Rebuilt (`npm run build` → `npx cap sync android` → `gradlew.bat
+    assembleDebug`, all clean) and reinstalled on the emulator. **Note:** the
+    emulator launched via a backgrounded Bash `&` command in the previous
+    step had been silently shut down between tool calls (visible in its log:
+    "Wait for emulator ... to shutdown gracefully") — backgrounding this way
+    doesn't reliably survive across this session's separate tool invocations
+    on Windows. Relaunched it via PowerShell's `Start-Process` instead, which
+    was confirmed to survive across calls (checked `adb devices` in a
+    follow-up call before proceeding) — worth remembering for any future
+    emulator relaunch in this project.
+  - **On-device verification — home screen dock icon, closely inspected via
+    cropped/zoomed screenshots (not just "the app opens"):** the icon is
+    visible in the dock. Zooming in shows the **corner-cropping caveat is
+    real and slightly more pronounced than a simple "corners get cropped"**:
+    the Pixel launcher applies a **circular mask**, and combined with the
+    16.7% inset described above, the dashed border (which extends to the very
+    edge of the flat source image) ends up shrunk into a smaller square that
+    itself gets its own corners clipped where it meets the circular
+    boundary — so the dashed pattern is visibly incomplete/broken at the
+    corners, not a full continuous border. There's also a **light-blue outer
+    ring** visible around that inset square (sampled pixel color ≈
+    `rgb(173,217,255)`, not the plain white of the generated background
+    layer) — most consistent with this launcher's Material You "themed icon"
+    tinting (system wallpaper-derived accent color applied to the
+    background/monochrome treatment), an extra visual effect beyond what the
+    task's caveat anticipated, on top of the expected corner-cropping. Net
+    effect: the icon is still clearly recognizable (the ℵ symbol reads fine)
+    but noticeably smaller within the circle than the source design intended,
+    with a cropped border and an unplanned colored ring. **Not fixed** — per
+    instructions, this is flagged for a possible separate follow-up
+    (generating a proper adaptive-icon-aware source with content inset to the
+    safe zone, and/or a dedicated background layer) rather than addressed
+    here.
 
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK is now sideloaded on both the
 emulator (as of the previous step, though it wasn't running at the time of
 this step) and a physical Samsung SM-S938N device — open it yourself on the
-phone whenever you're ready.
+phone whenever you're ready. **New:** the app icon is now the custom ℵ design,
+confirmed installed and visible on the emulator's home screen dock — but see
+the corner-cropping/themed-ring note just above if you want a follow-up pass
+on the adaptive-icon layers specifically (not done here, per instructions).
