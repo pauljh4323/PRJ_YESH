@@ -114,6 +114,16 @@ project-root/
       fresh session/terminal (or a reboot) to actually perform the rename.
       Nothing force-killed beyond the two authorized PIDs. See "## Mobile
       porting" and "Open items" for full detail.
+- [x] Mobile porting — directory rename completed externally (2026-09-07): user
+      renamed the folder via Windows Explorer (outside this session) to
+      `PROJECT_yesh`; session restarted at the new path. Confirmed clean —
+      no stale tracked references, git fully intact.
+- [ ] Mobile porting — second debug Gradle build attempt (2026-09-07):
+      **blocked, not complete, but real progress.** The `gradlew.bat` path bug
+      is confirmed fixed by the rename. New, unrelated blocker: downloading
+      the Gradle 8.14.3 distribution times out due to slow (~50 KB/s)
+      throughput to `services.gradle.org` from this network. No APK produced.
+      See "## Mobile porting" and "Open items" for full detail and options.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -491,15 +501,62 @@ project-root/
     remote -v` unchanged). **No rename has occurred; no build retried this
     round.**
 
+- **Directory rename — done, externally (2026-09-07):** the user renamed the
+  folder via Windows Explorer, from outside this Claude Code session, to
+  `D:\4_JOBS\PROJECT_yesh` — exactly the workaround anticipated above (a fresh
+  process not anchored to the old path). This session was then restarted
+  pointed at the new path. Confirmed: `pwd` resolves cleanly to
+  `/d/4_JOBS/PROJECT_yesh`, no errors.
+  - **Stale-reference check:** `git grep -n "yêsh"` (tracked files only) found
+    matches **only in this file's own historical log entries** narrating the
+    rename saga above (accurate past-tense documentation, correctly left
+    as-is — not a real hardcoded reference). No other tracked file references
+    the old name or the old absolute path.
+  - Checked known gitignored/local files for staleness too:
+    `android/local.properties` doesn't exist (no build had succeeded yet to
+    generate it), no `.idea`/`.vscode` folders present, `android/.gradle`
+    doesn't exist yet either — nothing stale to find, nothing to fix.
+  - `git status` clean, `git remote -v` still correctly points at
+    `git@github.com:pauljh4323/PRJ_YESH.git`, `git log` shows full prior
+    history intact. Git is completely unaffected by the external rename, as
+    expected.
+- **Second debug build attempt (2026-09-07) — the original path bug is fixed;
+  hit a new, different, network-level failure:** `gradlew.bat assembleDebug`
+  from the new path **no longer hits the `gradlew.bat`/`gradle#15977`
+  path-mangling bug** — it correctly found its own jar and proceeded much
+  further than any previous attempt, confirming the rename fixed that root
+  cause. It then started downloading the Gradle 8.14.3 distribution (first
+  time ever for this project — nothing was cached) and failed with:
+  ```
+  Exception in thread "main" java.io.IOException: Downloading from
+  https://services.gradle.org/distributions/gradle-8.14.3-all.zip failed: timeout (10000ms)
+  Caused by: java.net.SocketTimeoutException: Read timed out
+  ```
+  Retried once more (same command, no config changes) — failed identically,
+  stalling even earlier in the download. Diagnosed with a direct `curl` range
+  request to the same URL: connection itself succeeds quickly, but sustained
+  throughput is only **~50 KB/s**, and a plain 5 MB test chunk itself timed
+  out after 20 seconds without completing. This is a genuine, external
+  network/throughput issue between this machine and Gradle's distribution CDN
+  — unrelated to the project, to the JDK question (already resolved), or to
+  the path bug (now fixed by the rename). **No debug APK was produced.**
+  Per CLAUDE.md, stopping here rather than guessing further (e.g., unilaterally
+  raising `networkTimeout` in `gradle-wrapper.properties`, configuring a
+  mirror/proxy, or manually pre-seeding the Gradle distribution cache) —
+  all of those are real options but involve tradeoffs/config changes the user
+  should decide on, not something to silently pick.
+
 ## Open items for the user
-**Still blocked on a file lock — not the two originally-suspected processes.**
-Those were confirmed killed (or already exited) with no effect; the lock
-appears tied to how this Claude Code session itself holds the project
-directory as an anchored working directory between tool calls, which isn't
-something fixable from inside a command in that same session. Likely real
-fixes: (a) end/restart this Claude Code session (or the terminal it runs in)
-and perform the rename from a completely separate, fresh process (e.g., a
-plain Explorer rename, or a new terminal window not tied to this session), or
-(b) reboot. Once the folder is renamed, the pending steps are unchanged: sanity
--check no tracked file hardcodes the old path, confirm git works from the new
-path, and retry `android\gradlew.bat assembleDebug`.
+**The path/rename saga is fully resolved** — no action needed there. **New
+blocker: downloading the Gradle 8.14.3 distribution times out** due to slow
+(~50 KB/s) throughput to `services.gradle.org` from this machine/network, not
+anything in the project. Options to consider: (a) raise
+`networkTimeout` in `android/gradle/wrapper/gradle-wrapper.properties` (a
+config change, low risk, but only helps if the connection is merely slow, not
+if it's actually blocked/dropping), (b) try again later or from a different
+network in case this is transient/rate-limited, (c) manually download
+`gradle-8.14.3-all.zip` from another source and place it in the Gradle wrapper
+cache to skip the in-band download entirely, or (d) something else. Once the
+distribution is available, retrying `android\gradlew.bat assembleDebug` is
+still the next actual step — everything else about the build setup (JDK,
+`ANDROID_HOME`, the path) is confirmed correct at this point.
