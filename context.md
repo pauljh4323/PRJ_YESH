@@ -803,6 +803,22 @@ per the earlier decision (see "Priority platform" above), and nothing about
 this work blocks adding iOS later if wanted (Capacitor's iOS platform would be
 a separate, analogous `npx cap add ios` step whenever that's prioritized).
 
+- **Sideloaded onto a physical device (2026-09-07):** `adb devices -l` showed
+  one connected device — the physical phone, serial `R3KYB05SARN`, status
+  `device` (authorized; the emulator from the previous step was no longer
+  running by this point, which is fine — not a blocker, since the physical
+  device itself was correctly listed and authorized). Confirmed device
+  details via `getprop`: **Samsung SM-S938N** (`ro.product.manufacturer` =
+  `samsung`), Android **16**. Installed the existing debug APK specifically
+  onto that device (`adb -s R3KYB05SARN install -r
+  android/app/build/outputs/apk/debug/app-debug.apk`) → `Success`; confirmed
+  via `pm list packages` that `com.pauljh4323.oraclemachine` is now present on
+  the device. The app was **not** launched — left for the user to open
+  themselves, as instructed. No emulator interaction in this step.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
-porting — phase closed" above. The emulator is still running.
+porting — phase closed" above. The debug APK is now sideloaded on both the
+emulator (as of the previous step, though it wasn't running at the time of
+this step) and a physical Samsung SM-S938N device — open it yourself on the
+phone whenever you're ready.
