@@ -823,6 +823,18 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
       icon mask (flagged, not fixed, per instructions). See "## Mobile
       porting" for full detail, including the audit-findings jump from the
       new dev dependency and a note on emulator-launch reliability.
+- [x] Mobile porting — **icon corner-cropping fixed; npm audit critical finding
+      investigated** (2026-09-07): user redesigned `resources/icon.png`
+      (border removed, symbol only); regenerated, rebuilt, and confirmed via
+      zoomed on-device screenshot that the symbol now renders fully and
+      cleanly with no cropped border (the themed-icon tint ring remains, as
+      expected — launcher-level, unrelated to the icon). Separately
+      investigated (not fixed, per explicit instruction) the npm audit
+      critical finding: a nested, old `tar@6.2.1` copy pulled in by
+      `@capacitor/assets`'s own bundled legacy `@capacitor/cli@5.7.8`
+      dependency — dev-only, never shipped, and the vulnerable
+      archive-extraction code path isn't exercised by anything this project
+      actually runs. See "## Mobile porting" for full detail.
 
 - **New app icon applied via the official Capacitor asset generator
   (2026-09-07):**
@@ -897,12 +909,81 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
     safe zone, and/or a dedicated background layer) rather than addressed
     here.
 
+- **Icon redesigned to fix corner-cropping — confirmed clean on-device
+  (2026-09-07):** the user replaced `resources/icon.png` with a redesigned
+  version — **border removed, ℵ symbol only**, same 1024×1024 dark background.
+  Confirmed the file had genuinely changed before proceeding (file size
+  35,867 → 27,683 bytes; viewed it directly — border gone, symbol comfortably
+  inset from the edges) rather than assuming.
+  - Re-ran `npx @capacitor/assets generate --android` (74 files regenerated,
+    overwriting the previous bordered set). Spot-checked the new
+    `ic_launcher_foreground.png`: symbol only, no border, well clear of the
+    edges even before any safe-zone inset is applied.
+  - Rebuilt (`npm run build` → `npx cap sync android` → `gradlew.bat
+    assembleDebug`, clean) and reinstalled on the emulator. The emulator
+    wasn't running; relaunched it via PowerShell's `Start-Process` (the method
+    confirmed reliable last step, not a backgrounded Bash `&command`) —
+    booted and stayed up across tool calls as expected.
+  - **On-device verification — cropped/zoomed screenshot of the actual home
+    screen dock icon:** the dashed-border cropping issue is **gone**, as
+    expected (there's no border left to crop). The ℵ symbol renders **fully,
+    cleanly, not cut off** by the circular mask. The light-blue "themed icon"
+    outer ring from the previous step is **still present**, exactly as
+    predicted — confirmed this is unrelated to the source image and is a
+    launcher-level Material You behavior, not something this icon change was
+    meant to (or could) address.
+- **npm audit critical finding — investigated only, not fixed, per explicit
+  instruction (2026-09-07):**
+  - `npm audit --json` identifies the critical-severity line as the **`tar`**
+    package (node-tar), specifically the copy at
+    `node_modules/@capacitor/assets/node_modules/tar`. Traced with `npm ls
+    tar`: this is **not** the same `tar` our top-level `@capacitor/cli@8.5.1`
+    uses (that one resolves to `tar@7.5.22`, outside the vulnerable range).
+    It's a separate, older, nested copy pulled in because `@capacitor/assets`
+    itself depends on an **old, bundled `@capacitor/cli@5.7.8`** (its own
+    internal compatibility dependency, unrelated to the `@capacitor/cli@8.5.1`
+    this project otherwise uses) — and *that* old CLI depends on
+    `tar@6.2.1`, squarely inside the vulnerable range (`<=7.5.20`).
+  - **What the vulnerability actually is:** npm audit rolls up **12 separate
+    `node-tar` advisories** under this one "critical" line (critical because
+    one of the twelve — "Decompression/parse DoS via unlimited input",
+    CVSS 7.5 — is itself rated critical). The other eleven are a mix of
+    high/moderate: several **path-traversal / arbitrary file
+    overwrite via hardlink or symlink tricks** (e.g. GHSA-34x7-hfp2-rc4v,
+    CVSS 8.2; GHSA-83g3-92jg-28cx, CVSS 7.1), a **race condition** on macOS
+    APFS (GHSA-r6q2-hw4h-h46w, CVSS 8.8), and several **denial-of-service /
+    crash** issues from malformed tar headers (PAX size overrides, negative
+    entry sizes causing infinite loops, stack-overflow via crafted long
+    paths). **Every one of these requires `tar` to actually extract a
+    maliciously crafted `.tar` archive** — none are exploitable just by the
+    package existing on disk or being imported.
+  - **Dev-only vs. runtime exposure:** this `tar` copy is nested inside
+    `@capacitor/assets`, a **dev dependency** used only for local, one-time
+    icon/splash generation — it is never bundled into the shipped Android APK
+    or the web bundle (`dist/`), and never runs for end users of the Oracle
+    Machine app. Within this project's own actual usage, `npx @capacitor/assets
+    generate --android` doesn't extract any tar archive at all (its output
+    log shows only file creation/PNG resizing/XML writes, no "extracting"
+    step) — so the vulnerable code path isn't even exercised by the commands
+    this project runs. The theoretical exposure would require this old nested
+    `@capacitor/cli@5.7.8` to be made to extract an attacker-supplied tar
+    archive, which isn't part of any workflow used here.
+  - **Bottom line:** real finding, correctly flagged by `npm audit`, but very
+    low practical risk in this project's context — dev/build-time only, not
+    shipped, and the vulnerable extraction code path isn't invoked by
+    anything this project actually does with `@capacitor/assets`. **Not
+    fixed** — no `npm audit fix`, no dependency version changes — per the
+    user's explicit instruction that this was investigation only.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK is now sideloaded on both the
 emulator (as of the previous step, though it wasn't running at the time of
 this step) and a physical Samsung SM-S938N device — open it yourself on the
-phone whenever you're ready. **New:** the app icon is now the custom ℵ design,
-confirmed installed and visible on the emulator's home screen dock — but see
-the corner-cropping/themed-ring note just above if you want a follow-up pass
-on the adaptive-icon layers specifically (not done here, per instructions).
+phone whenever you're ready. The app icon is now the redesigned border-free ℵ
+symbol, confirmed clean on the emulator's home screen dock (no more cropped
+border) — the only remaining cosmetic detail is the launcher's own themed-icon
+tint ring, which is expected and outside this project's control. The npm audit
+critical finding (`tar`, nested under `@capacitor/assets`) has been
+investigated and documented above — dev-only exposure, not fixed, per your
+instruction to investigate only.
