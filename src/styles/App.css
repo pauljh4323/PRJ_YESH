@@ -77,3 +77,39 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Phone-sized viewports (e.g. the Android app in portrait): the desktop rules
+   above center a small, fixed-size block in the middle of a much taller
+   screen, leaving a lot of unused space above/below. These overrides make
+   the same three elements (still TextBox -> slots -> button, same order)
+   scale up to feel proportionate on a phone, using clamp() with vw/vh so it
+   adapts across phone sizes without needing a specific device breakpoint.
+   Colors, borders, and the scramble animation are untouched. */
+@media (max-width: 480px) {
+  .app {
+    gap: clamp(20px, 4vh, 40px);
+    padding: clamp(24px, 4vh, 48px) 20px;
+  }
+
+  .text-box {
+    padding: clamp(24px, 4vh, 40px) 20px;
+  }
+
+  .text-box p {
+    font-size: clamp(1.15rem, 6vw, 1.8rem);
+  }
+
+  .output-slots {
+    gap: clamp(8px, 2.5vw, 14px);
+  }
+
+  .output-slot {
+    font-size: clamp(1.75rem, 10vw, 2.75rem);
+  }
+
+  .output-button {
+    padding: clamp(16px, 3vh, 22px) clamp(28px, 8vw, 44px);
+    font-size: clamp(1.1rem, 5.5vw, 1.4rem);
+    min-width: 160px;
+  }
+}

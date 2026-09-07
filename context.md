@@ -670,6 +670,18 @@ project-root/
       desktop browser. One cosmetic, non-blocking observation: lots of unused
       vertical space on this tall phone screen (not fixed, per instructions).
       See "## Mobile porting" for full detail.
+- [x] Mobile porting — **responsive phone-viewport styling pass, phase closed**
+      (2026-09-07): added a `@media (max-width: 480px)` block to `App.css`
+      (sizing/spacing only — no layout, color, border, or animation changes)
+      to reduce the unused vertical space flagged in the previous step.
+      Verified no desktop regression (computed styles identical at 1280px
+      width) and a real, measured improvement on a phone-width viewport
+      (content grew from ~27% to 37% of viewport height). Rebuilt the APK,
+      reinstalled on the emulator, and confirmed both the visual improvement
+      and the Output button/animation still work correctly on-device. Android
+      mobile porting is now considered **complete for now**; iOS not pursued.
+      See "## Mobile porting" and "## Mobile porting — phase closed" for full
+      detail.
     - **To revert (needs an elevated/admin session — this one can't):** open
       PowerShell **as Administrator** and run:
       ```powershell
@@ -737,10 +749,60 @@ project-root/
     root, inspected, then deleted) — not committed; the emulator itself was
     left running in case further interaction is wanted.
 
+- **Responsive phone-viewport styling pass (2026-09-07):** added one
+  `@media (max-width: 480px)` block to the end of `App.css` (no other file
+  touched) that scales up `.app` gap/padding, `.text-box` padding/font-size,
+  `.output-slots` gap, `.output-slot` font-size, and `.output-button`
+  padding/font-size/min-width — using `clamp(min, vw-or-vh, max)` so it scales
+  smoothly across different phone sizes rather than one fixed magic-number
+  breakpoint value. Layout structure (TextBox → slots → button, same flex
+  column) is untouched, as are colors, border styles, and the scramble
+  animation logic (`App.jsx` was not touched at all this step).
+  - **Desktop regression check:** verified on the dev server at 1280×900 — the
+    media query doesn't apply (computed styles confirmed identical to the
+    pre-change values: `20px` gap, `1.1rem`/`17.6px` text-box font, `1.75rem`
+    /`28px` slot font, `1.05rem`/`16.8px` button font, `140px` button
+    min-width) — desktop appearance is pixel-identical to before.
+  - **Phone-width check:** at a 393×807 viewport (matching the AVD's
+    approximate CSS pixel size), computed styles confirmed the new rules
+    applied (e.g. slot font ~39px vs. 28px before, button font ~22px vs.
+    16.8px, gaps/padding all up too). Measured concretely: the content block
+    (TextBox top to button bottom) went from an estimated ~27% of viewport
+    height to a measured **37%** — a real, meaningful reduction in unused
+    space, not just a code change assumed to work. (The Browser pane's
+    screenshot tool had a rendering glitch at this custom viewport size —
+    confirmed via `get_page_text` that the DOM itself was correct, single
+    copy of each element — so verification here relied on computed styles
+    and measured bounding-box heights instead of a screenshot.)
+  - **Rebuilt for Android and re-verified on-device:** `npm run build` →
+    `npx cap sync android` → `gradlew.bat assembleDebug`, all clean. Installed
+    the updated APK over the running emulator (`adb install -r`), force-
+    stopped and relaunched the app.
+    - **Before/after comparison, on the actual emulator:** in the new
+      screenshot, "ORACLE_MACHINE" and "PRAY" are visibly larger, the button
+      has noticeably more padding, and the whole content block sits higher up
+      and extends further down than in the pre-change screenshot from the
+      previous step (TextBox top moved from ~translated y≈808 to ~y≈713;
+      content block is visibly taller) — the improvement is real and visible
+      on-device, not just a code assumption.
+    - **Tapped Output again post-change:** mid-animation screenshot showed the
+      button greyed/disabled with scrambling slot values (`F`, `3`, `D`, `$`,
+      `X`) at the new larger size; the settled screenshot showed the button
+      back to white/enabled with plausible final values (`R`, `1`, `껜`, `❊`,
+      `Q`) — confirms the scramble animation, disabled state, and shuffle
+      logic all still work correctly after the styling change.
+  - Screenshots were again temporary (pulled, inspected, deleted) — not
+    committed.
+
+## Mobile porting — phase closed
+
+**Android mobile porting is now fully verified end-to-end** (build → install →
+launch → render → interact, including this phone-viewport styling pass) and is
+considered **complete for now**. iOS was not pursued — Android was prioritized
+per the earlier decision (see "Priority platform" above), and nothing about
+this work blocks adding iOS later if wanted (Capacitor's iOS platform would be
+a separate, analogous `npx cap add ios` step whenever that's prioritized).
+
 ## Open items for the user
-None blocking. The debug build succeeds and the app has now been verified
-end-to-end on the Android emulator — see above for what was checked. The one
-non-blocking observation is cosmetic: a lot of unused vertical space on tall
-phone screens, since the current layout centers a compact block rather than
-filling the screen — worth a future styling pass if desired, not addressed
-here per instructions. The emulator is still running.
+None blocking. Mobile porting (Android) is complete for now — see "Mobile
+porting — phase closed" above. The emulator is still running.
