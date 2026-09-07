@@ -135,14 +135,13 @@ project-root/
 - [x] Mobile porting — **first successful debug APK build** (2026-09-07):
       installed Eclipse Temurin 21 via winget, wired it up project-scoped via
       `org.gradle.java.home` in `android/gradle.properties` (system-wide
-      `JAVA_HOME` left as JDK 20, as instructed). `gradlew.bat assembleDebug`
-      **succeeded**. APK at
+      `JAVA_HOME` left untouched by this session, as instructed). `gradlew.bat
+      assembleDebug` **succeeded**. APK at
       `android/app/build/outputs/apk/debug/app-debug.apk` (correctly
-      gitignored). **Caveat:** the Temurin 21 installer itself changed the
-      system-wide `JAVA_HOME`/`PATH` as a side effect (against instructions);
-      caught immediately, but this session lacks the admin permission to
-      revert it — needs the user to do so from an elevated session. See "##
-      Mobile porting" and "Open items" for the exact revert commands.
+      gitignored). The Temurin 21 installer itself changed the system-wide
+      `JAVA_HOME`/`PATH` as a side effect (against instructions, not done
+      deliberately here) — flagged immediately; user reviewed it and decided
+      to leave it as-is (2026-09-07), closed, no action needed.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -663,6 +662,14 @@ project-root/
       reverted. This project itself is unaffected either way, since
       `org.gradle.java.home` in `gradle.properties` takes precedence for
       Gradle specifically, regardless of `JAVA_HOME`.
+- [x] Mobile porting — **first successful emulator verification** (2026-09-07):
+      launched the `Pixel_3a_API_34` AVD, installed and launched the debug
+      APK, confirmed the initial UI (TextBox/slots/button) renders correctly
+      on-device, and confirmed the Output button's scramble animation +
+      disabled state + final shuffled results all work identically to the
+      desktop browser. One cosmetic, non-blocking observation: lots of unused
+      vertical space on this tall phone screen (not fixed, per instructions).
+      See "## Mobile porting" for full detail.
     - **To revert (needs an elevated/admin session — this one can't):** open
       PowerShell **as Administrator** and run:
       ```powershell
@@ -673,17 +680,67 @@ project-root/
       or via the GUI: System Properties → Environment Variables → System
       variables → edit `JAVA_HOME` back to `C:\Program Files\Java\jdk-20`, and
       remove the `...\jdk-21.0.12.101-hotspot\bin` entry from `Path`.
+  - **Resolved/closed (2026-09-07):** the user reviewed this system-wide
+    `JAVA_HOME`/`PATH` change and decided to **leave it as-is** — no revert
+    needed, no further action on this item. (This project itself was never
+    affected by it either way, since `org.gradle.java.home` in
+    `gradle.properties` takes precedence for Gradle regardless of the
+    system-wide `JAVA_HOME`.)
+
+- **First emulator verification — end-to-end mobile success (2026-09-07):**
+  - Launched the `Pixel_3a_API_34_extension_level_7_x86_64` AVD in the
+    background (`emulator -avd ... -no-snapshot-load`, detached so it wouldn't
+    block the rest of the task). Waited properly for a full boot — `adb
+    wait-for-device` followed by polling `getprop sys.boot_completed` until it
+    returned `1` (not just "device is listed"), which took ~20–25s.
+  - `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` →
+    `Success`. `adb shell am start -n
+    com.pauljh4323.oraclemachine/.MainActivity` launched it cleanly.
+  - **Initial screenshot (before any tap):** TextBox shows "ORACLE_MACHINE"
+    with its dashed blue border; all 5 slots render empty with dashed blue
+    borders; the Output button shows "PRAY" with a white fill and dashed blue
+    border. All text is legible, nothing clipped, overlapping, or cut off at
+    this device's screen edges.
+    - **Honest layout observation (not fixed, per instructions):** on this
+      phone's tall screen (1080×2220), the content block sits in a
+      correctly-centered position vertically, but because the block is
+      compact and the screen is much taller than any desktop browser window
+      this was designed in, there's a large amount of unused black space both
+      above and below it — noticeably more pronounced than on desktop. Nothing
+      is broken, but it may look visually sparse on a phone. Flagging as
+      requested, not touching it.
+  - **Tapped the "PRAY" button** (`adb shell input tap`, coordinates scaled
+    from the screenshot to the device's real resolution). Captured two more
+    screenshots in quick succession:
+    - **Mid-animation:** button visibly **greyed out/disabled**, and all 5
+      slots showed different decorative scramble characters (`Z`, `#`, `↑`,
+      `0`, `R`) in the cyan slot-text color — confirms the disabled-button
+      state and the scramble effect both work correctly on-device, not just
+      in the desktop browser.
+    - **After settling:** button back to its normal **white/enabled** state,
+      slots holding stable final values (`2`, `닙`, `#`, `0`, `2` in this
+      run) — plausible per-rule (digits, a Hangul syllable, a symbol), no
+      leftover scramble artifacts. Matches desktop behavior.
+    - Note: adb round-trip latency between commands turned out to be larger
+      than the sleep durations requested (a `0.5s`–`0.8s` nominal gap
+      sometimes already showed the fully-settled state, consistent with
+      real elapsed time exceeding the ~2.24s total animation length) — not a
+      bug in the app, just tool/ADB overhead between separate commands.
+  - **Conclusion: first successful end-to-end mobile verification.** The app
+    builds, installs, launches, renders correctly, and the Output
+    button/shuffle/scramble/re-enable behavior all work identically to the
+    desktop browser version. No visual/layout fixes were made in this step,
+    per instructions — the only thing flagged is the large unused vertical
+    space on a tall phone screen, noted above for a future styling pass if
+    wanted.
+  - Screenshots were temporary verification artifacts (pulled to the repo
+    root, inspected, then deleted) — not committed; the emulator itself was
+    left running in case further interaction is wanted.
 
 ## Open items for the user
-**The debug build now succeeds** — see above for the APK path. **One thing
-needs your attention (not something this session could fix):** installing
-Temurin 21 caused its MSI installer to change the **system-wide** `JAVA_HOME`
-and `PATH` to point at JDK 21, despite being asked not to — this session
-caught it immediately and tried to revert it, but lacks the admin/elevated
-permission needed to write `HKLM` environment variables. See the exact revert
-commands just above. Until reverted, other Java tooling on this machine that
-relies on the default `JAVA_HOME` (outside this project, which is unaffected
-via its own `org.gradle.java.home`) will use JDK 21 instead of JDK 20.
-Everything else about mobile porting is now unblocked — the next step would be
-running the debug APK on the emulator (the `Pixel_3a_API_34` AVD found earlier)
-or a device.
+None blocking. The debug build succeeds and the app has now been verified
+end-to-end on the Android emulator — see above for what was checked. The one
+non-blocking observation is cosmetic: a lot of unused vertical space on tall
+phone screens, since the current layout centers a compact block rather than
+filling the screen — worth a future styling pass if desired, not addressed
+here per instructions. The emulator is still running.
