@@ -835,6 +835,17 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
       dependency — dev-only, never shipped, and the vulnerable
       archive-extraction code path isn't exercised by anything this project
       actually runs. See "## Mobile porting" for full detail.
+- [x] Mobile porting — **convenience npm scripts added** (2026-09-08): added
+      `android:rebuild`, `android:install`, `android:rebuild:install` to
+      `package.json` (scripts section only, no app code touched). Found and
+      fixed a real bug while testing (not just writing): this machine's
+      Windows `NoDefaultCurrentDirectoryInExePath` security hardening blocks
+      `cmd.exe` from launching a bare-named `.bat` file from the current
+      directory — `.\gradlew.bat` (explicit path prefix) is required, a bare
+      `gradlew.bat` fails even though `dir` finds it. All three scripts
+      actually run successfully end-to-end (tested against the emulator, the
+      only device connected at the time). Multi-device caveat documented in
+      "## Mobile porting" since `package.json` can't hold inline comments.
 
 - **New app icon applied via the official Capacitor asset generator
   (2026-09-07):**
@@ -990,6 +1001,62 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
   **not** launched, per instructions — left for the user. No emulator
   interaction.
 
+- **Convenience npm scripts for the mobile rebuild pipeline (2026-09-08):**
+  added three scripts to `package.json` — no app code touched, scripts section
+  only:
+  - `npm run android:rebuild` — chains `npm run build` → `npx cap sync
+    android` → `cd android && .\gradlew.bat assembleDebug && cd ..`. Produces
+    a fresh debug APK at `android/app/build/outputs/apk/debug/app-debug.apk`.
+  - `npm run android:install` — `adb install -r
+    android\app\build\outputs\apk\debug\app-debug.apk`. Installs onto
+    whichever device is connected — see the multi-device caveat below.
+  - `npm run android:rebuild:install` — runs both in sequence: rebuild, then
+    install.
+  - **A real, non-obvious bug found and fixed while testing (not just writing
+    and assuming it works):** the first version of `android:rebuild` used a
+    bare `gradlew.bat` (no path prefix) after `cd android`, exactly matching
+    the task's own suggested syntax. It **failed** — not with the historical
+    `gradle/gradle#15977` accented-path bug (that's fixed, this path is
+    plain ASCII), but with a plain "not recognized as an internal or external
+    command." Isolated with a series of direct tests (a trivial throwaway
+    `.bat` file, tested via `cmd /c` with and without quotes, with and
+    without `call`, checking `PATHEXT`/`COMSPEC`/cwd — all normal) down to:
+    **this machine has Windows' `NoDefaultCurrentDirectoryInExePath` security
+    hardening in effect**, which disables `cmd.exe`'s implicit "search the
+    current directory for a bare command name" behavior — a bare `foo.bat`
+    fails to launch even when it's right there and `dir foo.bat` finds it
+    fine, while `.\foo.bat` or a full path launches it correctly. Since `npm
+    run` on Windows executes scripts via `cmd.exe` regardless of which shell
+    invoked `npm`, **any npm script invoking a local `.bat` file by bare name
+    will hit this wall on this machine** — not just gradlew. Fixed by using
+    `.\gradlew.bat` instead of the bare filename. This is a machine
+    configuration detail (likely security software or an IT policy), not
+    something to change (that would be a system security setting) — the
+    script itself now works around it correctly and portably.
+  - **Actually tested, not just written:** ran all three scripts for real
+    from a clean invocation (after the fix above). `android:rebuild`:
+    `BUILD SUCCESSFUL`, exit 0. `android:install` and
+    `android:rebuild:install`: both `Success`, exit 0, tested against the
+    running emulator (the only device connected at the time).
+  - **Multi-device caveat (documented here since `package.json` is strict
+    JSON and can't hold inline comments):** `android:install` (and therefore
+    the tail end of `android:rebuild:install`) runs a plain `adb install -r`
+    with no `-s <serial>`. This only works cleanly when **exactly one**
+    device/emulator is connected — both the emulator and the physical phone
+    have been connected simultaneously in past sessions (see the Android
+    tooling and physical-device-sideload notes above). If more than one is
+    connected, `adb` refuses ambiguously rather than guessing — it reports
+    "more than one device/emulator" and does **not** install anywhere, so
+    there's no risk of silently installing to the wrong device — but the
+    script will fail and you'll need to run the install manually with an
+    explicit target, e.g.:
+    `adb -s <serial> install -r android\app\build\outputs\apk\debug\app-debug.apk`
+    (get `<serial>` from `adb devices`). This wasn't turned into a script
+    argument (npm's `--` argument passing appends to the *end* of the command
+    line, which doesn't work for `adb`'s `-s <serial>`, which must come
+    immediately after `adb` — not a clean fit), so it's documented here
+    instead, per the task's own "keep it simple" allowance.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK with the redesigned border-free ℵ
@@ -997,4 +1064,6 @@ icon is now installed on both the emulator and the physical Samsung SM-S938N
 device — open it yourself on the phone whenever you're ready. The npm audit
 critical finding (`tar`, nested under `@capacitor/assets`) has been
 investigated and documented above — dev-only exposure, not fixed, per your
-instruction to investigate only.
+instruction to investigate only. **New:** `npm run android:rebuild[:install]`
+is now the standard way to rebuild (and optionally install) the Android
+build — see the script notes above for the multi-device caveat.
