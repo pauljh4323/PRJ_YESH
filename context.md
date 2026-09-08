@@ -152,6 +152,14 @@ project-root/
       fire-and-forget to looping, explicitly stopped when the last slot locks
       in. Verified via instrumentation, not assumed. See "Retiming to 4200ms
       + button sound now loops" below.
+- [ ] Privacy policy + GitHub Pages (2026-09-08): audited actual data
+      practices (no analytics/ads/tracking, no network calls in `src/`, no
+      accounts/stored data/device identifiers — only inert Capacitor
+      boilerplate: an unused `INTERNET` permission and a dormant
+      `google-services` classpath), drafted `docs/privacy-policy.html`
+      accordingly. **Not complete:** GitHub Pages not yet enabled — `gh` CLI
+      isn't installed on this machine, so this needs manual setup by the
+      user. See "Privacy policy & GitHub Pages" below and "Open items."
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1180,8 +1188,105 @@ only:
   last slot settles) on the emulator or physical phone. Please confirm after
   installing the rebuilt APK.
 
+## Privacy policy & GitHub Pages (2026-09-08)
+
+Audited the app's actual data practices before writing anything, per
+instructions — nothing here was assumed:
+
+- **`android/app/src/main/AndroidManifest.xml`:** only permission explicitly
+  declared is `android.permission.INTERNET`. Checked the actual last-built
+  merged manifest too
+  (`android/app/build/intermediates/packaged_manifests/debug/.../AndroidManifest.xml`)
+  — it adds exactly one more permission beyond that:
+  `com.pauljh4323.oraclemachine.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a
+  self-defined, AndroidX-generated internal signature permission that
+  protects the app's own broadcast receivers from other apps — it's
+  invisible to end users (no runtime prompt, not a data-collection concern)
+  and not related to data collection at all.
+- **`INTERNET` permission — flagged rather than glossed over:** this is
+  default Capacitor Android template boilerplate, added automatically by
+  `cap add android` regardless of whether the app uses networking. A full
+  grep of `src/` for `fetch`, `XMLHttpRequest`, `axios`, `WebSocket`, and
+  similar found **zero actual network calls** anywhere in the app's own
+  code — the only hit was a citation URL inside a code comment in
+  `src/logic/ksHangul2350.js`. So the permission exists in the package but
+  is never exercised. Documented honestly in the privacy policy itself
+  (see below) rather than silently omitted or used to falsely claim "zero
+  permissions."
+- **`android/build.gradle`:** has a `classpath
+  'com.google.gms:google-services:4.4.4'` line — again default Capacitor
+  Android template boilerplate, not something added deliberately for this
+  project. Confirmed it's inert: `android/app/build.gradle` only applies the
+  `com.google.gms.google-services` plugin inside a try/catch that requires a
+  `google-services.json` file to exist, and `find` confirmed **no such file
+  exists anywhere under `android/`** — so the plugin is never actually
+  applied, and no Firebase/Google Services code runs.
+- **`package.json` dependencies/devDependencies:** only React, React-DOM,
+  `@capacitor/core`, `@capacitor/android`, `@capacitor/cli`,
+  `@capacitor/assets` (dev), `oxlint`, and `vite`. No Firebase, Google
+  Analytics, AdMob, Crashlytics, Facebook SDK, or any other
+  analytics/ads/tracking library, confirmed by reading the file directly
+  (not just grepping for keywords).
+- **No accounts, no stored user data, no device identifiers:** confirmed by
+  reading every file under `src/` (`App.jsx` and its few components/logic
+  modules are the entire app) — no login/account UI or logic, no
+  `localStorage`/`sessionStorage`/`indexedDB` usage, no Capacitor Device
+  plugin or any device-identifier access.
+- **`androidx.core.content.FileProvider`** is declared in the manifest
+  (`exported="false"`, standard Capacitor Android boilerplate for potential
+  local file sharing) but is not used by any app code — no
+  filesystem/camera/share plugin is installed or imported — and being
+  non-exported, other apps can't reach it anyway. Not a data-collection
+  concern; not mentioned in the policy since nothing actually happens
+  through it.
+- **Bottom line:** audit confirms Oracle Machine genuinely collects,
+  stores, and transmits no data of any kind. The only things worth being
+  transparent about are the two pieces of inert Capacitor/Android template
+  boilerplate above (`INTERNET` permission, dormant `google-services`
+  classpath) — neither is exercised by any code in this project, and both
+  are called out honestly in the policy text rather than hidden.
+
+**Privacy policy drafted:** [`docs/privacy-policy.html`](docs/privacy-policy.html)
+— a plain, self-contained static HTML page (no build step, no dependencies,
+matches "static files direct from `/docs`" for GitHub Pages). Sections:
+what the app is (offline random-character game), a clear "collects nothing"
+statement, an honest explanation of the unused `INTERNET` permission, "no
+third-party services," a children's-privacy line (trivially true since
+nothing is collected from anyone), a "last updated" date (2026-09-08), and
+a contact email (`pauljh4323@gmail.com`). Verified the rendered page's text
+content directly (via a local `file://` load) rather than assuming the HTML
+renders as intended.
+
+**GitHub Pages status: NOT enabled by this session — needs manual setup.**
+Checked for GitHub CLI (`gh`) via both Bash and PowerShell — **not
+installed** on this machine (`gh: command not found` / "not recognized as
+... a cmdlet"). Per instructions, stopping here rather than guessing around
+the missing tool. Manual steps for the user:
+
+1. Go to `https://github.com/pauljh4323/PRJ_YESH/settings/pages`.
+2. Under "Build and deployment" → **Source**, choose **Deploy from a
+   branch**.
+3. Under **Branch**, choose **`main`** and folder **`/docs`**.
+4. Click **Save**.
+5. GitHub Pages deployment typically takes a few minutes after saving —
+   an immediate 404 right after enabling isn't necessarily a failure.
+
+**Expected final URL once enabled:**
+`https://pauljh4323.github.io/PRJ_YESH/privacy-policy.html`
+— this is the URL to paste into Play Console's store listing (Data safety /
+Privacy policy field) once Pages is live. Not fetched/confirmed live by this
+session since Pages hasn't been enabled yet.
+
 ## Open items for the user
-None blocking. Mobile porting (Android) is complete for now — see "Mobile
+**New — needs manual action:** GitHub Pages isn't enabled yet (this
+session's environment has no `gh` CLI installed) — see "Privacy policy &
+GitHub Pages" above for the exact manual steps (repo Settings → Pages →
+Deploy from a branch → `main` / `/docs`). Once enabled, the privacy policy
+should be live at
+`https://pauljh4323.github.io/PRJ_YESH/privacy-policy.html` (allow a few
+minutes after saving) — that's the URL for Play Console's store listing.
+
+None blocking beyond that. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK with the redesigned border-free ℵ
 icon is now installed on both the emulator and the physical Samsung SM-S938N
 device — open it yourself on the phone whenever you're ready. The npm audit
