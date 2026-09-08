@@ -21,6 +21,20 @@ function randomScrambleChar() {
   return SCRAMBLE_POOL[Math.floor(Math.random() * SCRAMBLE_POOL.length)]
 }
 
+// Fire-and-forget sound effect. A fresh Audio instance is created per call so
+// overlapping plays (e.g. 5 slots locking in a fraction of a second apart)
+// don't cut each other off the way replaying one shared instance would.
+// Playback errors (autoplay-policy edge cases, etc.) are swallowed — sound is
+// never allowed to break the visual game.
+function playSound(src) {
+  try {
+    const audio = new Audio(src)
+    audio.play().catch(() => {})
+  } catch {
+    // ignore
+  }
+}
+
 function App() {
   const [displaySlots, setDisplaySlots] = useState(EMPTY_SLOTS)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -40,6 +54,7 @@ function App() {
 
     const finalValues = generateRound()
     setIsAnimating(true)
+    playSound('/sounds/beepbeep.mp3')
 
     let settledCount = 0
 
@@ -61,6 +76,7 @@ function App() {
             next[i] = finalValue
             return next
           })
+          playSound('/sounds/beep.mp3')
           settledCount += 1
           if (settledCount === finalValues.length) {
             setIsAnimating(false)

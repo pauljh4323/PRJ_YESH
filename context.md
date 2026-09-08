@@ -142,6 +142,10 @@ project-root/
       `JAVA_HOME`/`PATH` as a side effect (against instructions, not done
       deliberately here) — flagged immediately; user reviewed it and decided
       to leave it as-is (2026-09-07), closed, no action needed.
+- [x] Sound effects (2026-09-08): button-click sound and per-slot lock-in
+      sound added, verified in the dev server via instrumented timing (not
+      actual listening) and confirmed bundled into the native Android assets
+      after `npm run android:rebuild`. See "Sound effects" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1057,6 +1061,65 @@ a separate, analogous `npx cap add ios` step whenever that's prioritized).
     immediately after `adb` — not a clean fit), so it's documented here
     instead, per the task's own "keep it simple" allowance.
 
+## Sound effects
+
+Added two sound effects (2026-09-08), on top of the closed-out mobile porting
+phase — no app logic other than trigger points touched:
+
+- **Assets:** `public/sounds/beepbeep.mp3` (89,007 bytes) and
+  `public/sounds/beep.mp3` (16,602 bytes), both provided by the user
+  beforehand and confirmed present before starting. Not gitignored — `public/`
+  isn't matched by any rule in `.gitignore`, confirmed committed alongside the
+  code (see commit below), not treated as a build artifact.
+- **Trigger points** (in `src/App.jsx`'s existing reveal-animation logic —
+  unchanged otherwise):
+  - `beepbeep.mp3` plays once, at the very start of `handleOutput()`, right
+    after `setIsAnimating(true)` — i.e. on every Output-button click that
+    actually starts a round.
+  - `beep.mp3` plays once per slot, at the exact moment that slot's own
+    `lockInTimeoutId` callback fires and sets `next[i] = finalValue` — the
+    same 5 staggered points (`STAGGER_MS` apart, `SCRAMBLE_DURATION_MS` after
+    each slot starts) that already drive the visual lock-in. All 5 slots use
+    the same `beep.mp3` file, as decided (no per-rule sound variation).
+- **Implementation:** a small `playSound(src)` helper in `App.jsx` using
+  plain `new Audio(src)` + `.play().catch(() => {})`, wrapped in try/catch —
+  no new dependency. A **fresh `Audio` instance is created on every call**
+  rather than reusing one instance, since `beep.mp3` can fire up to 5 times
+  within ~440ms (5 × 110ms stagger) and reusing/replaying one instance would
+  cut off the previous slot's sound when the next fires before it finishes;
+  the same fresh-instance pattern is used for `beepbeep.mp3` for consistency,
+  in case of rapid re-clicks (though the button is already disabled during
+  animation, so that case shouldn't normally occur). Playback is fire-and-
+  forget — the Output button's existing disabled-during-animation behavior
+  doesn't wait on audio in any way, and a blocked/failed `play()` (e.g.
+  autoplay-policy edge cases) is silently swallowed, never thrown, so sound
+  issues can't break the visual game.
+- **Verified in the dev server (2026-09-08)** — via instrumentation, not by
+  listening (this session can't hear audio): the plain network-request log
+  only showed one entry per unique URL (deduped), so `Audio` itself was
+  temporarily wrapped in the browser console to timestamp every construction
+  call. Result from one Output click: `beepbeep.mp3` at t=0ms (the click),
+  then `beep.mp3` five separate times at roughly t=1869/1920/2040/2150/2260ms
+  — five distinct staggered events (not simultaneous, not fewer than five),
+  each after their slot's own scramble instead of one shared moment. The
+  small spacing drift from the theoretical `i*110 + 1800` ms marks (+69/+10/
+  +20/+20/+20ms) is ordinary `setInterval`/`setTimeout` jitter from the
+  animation's own 45ms scramble-tick granularity, not a bug in the sound
+  trigger logic. Instrumentation was read-only (wrapped `window.Audio`,
+  logged to an array) and left no trace in the shipped code.
+- **Verified bundled into the native Android build (2026-09-08):** ran `npm
+  run android:rebuild` (`BUILD SUCCESSFUL`, exit 0, no unrelated changes to
+  the pipeline), then confirmed
+  `android/app/src/main/assets/public/sounds/beep.mp3` and `beepbeep.mp3`
+  exist with byte-for-byte matching sizes to the `public/sounds/` sources —
+  i.e. `cap sync` correctly carried the new assets from the web `dist/` build
+  into the native asset bundle, not just into the web output.
+- **Not verified — deliberately out of scope for this step:** actual audible
+  playback on the emulator or physical phone. There's no reliable way for
+  this session to "hear" anything; the user should install the rebuilt APK
+  (`npm run android:install`, or `android:rebuild:install` for both in one
+  step) and confirm both sounds play correctly and at the right moments.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK with the redesigned border-free ℵ
@@ -1066,4 +1129,8 @@ critical finding (`tar`, nested under `@capacitor/assets`) has been
 investigated and documented above — dev-only exposure, not fixed, per your
 instruction to investigate only. **New:** `npm run android:rebuild[:install]`
 is now the standard way to rebuild (and optionally install) the Android
-build — see the script notes above for the multi-device caveat.
+build — see the script notes above for the multi-device caveat. Sound effects
+(button click + per-slot lock-in) have been added — see "Sound effects" below.
+**Not yet done:** actual audible playback on device/emulator hasn't been
+confirmed by this session (no reliable way to "hear" it here) — please confirm
+it sounds right after installing.
