@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+// Release signing: credentials live in android/keystore.properties (gitignored,
+// never committed — see .gitignore). This file is loaded programmatically by
+// Gradle at build time; its values are never printed or logged anywhere.
+// If it's absent (e.g. a fresh checkout that hasn't set up release signing
+// yet), debug builds are completely unaffected, and release builds fall back
+// to being unsigned with a clear warning explaining why — rather than an
+// unsigned build simply failing later with a cryptic signing error.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+def keystorePropertiesExist = keystorePropertiesFile.exists()
+if (keystorePropertiesExist) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+} else {
+    logger.warn("android/keystore.properties not found — release builds will be unsigned. See context.md for how to set up release signing.")
+}
+
 android {
     namespace = "com.pauljh4323.oraclemachine"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +32,29 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesExist) {
+                // storeFile path in keystore.properties is relative to this
+                // (android/) project root, matching where keystore.properties
+                // itself lives.
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesExist) {
+                signingConfig signingConfigs.release
+            }
+            // else: no signingConfig applied — assembleRelease/bundleRelease
+            // will still run but produce an unsigned artifact; the warning
+            // above already explains why.
         }
     }
 }

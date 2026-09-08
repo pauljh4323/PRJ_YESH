@@ -160,6 +160,17 @@ project-root/
       accordingly. **Not complete:** GitHub Pages not yet enabled — `gh` CLI
       isn't installed on this machine, so this needs manual setup by the
       user. See "Privacy policy & GitHub Pages" below and "Open items."
+- [x] Release signing + first release AAB (2026-09-09): `android/app/build.gradle`
+      now loads `android/keystore.properties` (gitignored, confirmed never
+      committed) and applies a real `signingConfigs.release`.
+      `gradlew.bat bundleRelease` → `app-release.aab` produced and verified
+      signed with the real (non-debug) certificate; on-device sanity test on
+      the emulator confirmed button/slots/animation all work in the release
+      build. **Incident:** this session briefly Read `keystore.properties`
+      directly during setup, exposing its old password in tool output — user
+      regenerated the keystore with a fresh password as a result; see
+      "Release signing + first release AAB" below for the full account and
+      the resulting standing rule (also added to CLAUDE.md).
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1277,7 +1288,115 @@ the missing tool. Manual steps for the user:
 Privacy policy field) once Pages is live. Not fetched/confirmed live by this
 session since Pages hasn't been enabled yet.
 
+## Release signing + first release AAB (2026-09-09)
+
+**Incident during setup, logged here in full for the record:** while
+originally checking `android/keystore.properties`'s key names, this session
+made a mistake and directly Read the file, which printed both plaintext
+passwords into the tool-output transcript — exactly the thing the task
+instructions said never to do. Caught immediately, flagged to the user
+rather than continuing quietly, and the user chose to regenerate the
+keystore (`android/app/release-key.jks`) and `keystore.properties` with a
+fresh password rather than treat the exposed one as still safe to use — the
+right call, since this was pre-first-release (nothing had been signed with
+the old key and uploaded anywhere yet, so replacing it cost nothing). The
+old password is being treated as permanently burned and was never referenced
+again after the exposure was caught. **This session's own file-content-read
+mistake, not something the user did wrong.**
+
+**Lesson — now also added to CLAUDE.md as a standing rule:** never open,
+Read, `cat`, or otherwise print the contents of a credentials/secrets file
+(keystores, `.properties` files with passwords, `.env` files, etc.) even to
+"confirm the format" or "check key names" — well-known conventional key
+names (e.g. Android's `storePassword`/`keyPassword`/`keyAlias`/`storeFile`)
+should be referenced directly instead. Existence/metadata checks
+(`Test-Path`, `ls`, timestamps) are fine and were used throughout instead of
+content reads for all verification in this task.
+
+**Gitignore coverage — was NOT actually covered, fixed before anything else
+touched these files:** `android/.gitignore`'s keystore lines (`#*.jks`,
+`#*.keystore`) were commented out, and there was no rule at all for
+`keystore.properties`. Confirmed via `git status` that both files were
+sitting as untracked (`??`) — not yet committed anywhere, no leak had
+occurred via git — but they would have been swept up by a future `git add
+-A`. Added explicit, uncommented entries to `android/.gitignore`
+(`app/release-key.jks` and `keystore.properties`) before any `git add`
+touched the working tree, then re-confirmed via `git status` (both before
+and immediately before the final commit below) that neither file ever
+appeared as trackable, including after the keystore was regenerated
+mid-task.
+
+**`android/app/build.gradle` changes:**
+- Loads `android/keystore.properties` (relative path `rootProject.file('keystore.properties')`,
+  confirmed correct relative to `build.gradle`'s own location one level up)
+  via `Properties()` + `FileInputStream`, guarded with an `.exists()` check.
+- If the file is missing, logs a clear `logger.warn(...)` explaining exactly
+  why and where to look, and simply skips applying a `signingConfig` to the
+  `release` build type (debug builds are entirely unaffected either way) —
+  rather than crashing with a cryptic Gradle error deep in the signing step.
+- Added `signingConfigs.release`, referencing `storeFile`/`storePassword`/
+  `keyAlias`/`keyPassword` from the loaded properties object — standard
+  Android convention key names, referenced directly, never inspected as
+  literal file content by this session.
+- `buildTypes.release.signingConfig` set to it (conditionally, per above).
+- **No password value appears anywhere in `build.gradle`, in this file, or
+  in any command output produced during this task.**
+
+**Minification check (confirmed from the actual file, not assumed):**
+`release` build type has `minifyEnabled false`, and `shrinkResources` isn't
+set at all (defaults to `false`). So R8/ProGuard minification is currently
+**off** — Capacitor's default template ships this way. Flagged per
+instructions rather than assumed; left as-is since changing it wasn't asked
+for. This does mean today's on-device verification (below) wasn't
+specifically stress-testing minification-induced breakage, since there's no
+minification happening yet — worth remembering if `minifyEnabled` is ever
+turned on later, that verification step would need repeating for real.
+
+**Build results:**
+- `gradlew.bat bundleRelease` → `BUILD SUCCESSFUL`. Output:
+  `android/app/build/outputs/bundle/release/app-release.aab` (~3.24 MB) —
+  **this is the file to upload to Play Console.**
+- `gradlew.bat assembleRelease` → `BUILD SUCCESSFUL`. Output:
+  `android/app/build/outputs/apk/release/app-release.apk` (~3.46 MB) — local
+  testing only, not a Play Console artifact.
+- `signReleaseBundle` appeared in the `bundleRelease` task graph, confirming
+  the signing config was actually applied (not silently skipped).
+- Verified the APK's actual signing certificate with `apksigner verify
+  --print-certs` (safe — this reveals only the public certificate
+  fingerprint, never the password): a real, distinct certificate (not the
+  debug "Android Debug" cert), confirming the new keystore is genuinely
+  what's signing release builds.
+
+**On-device sanity test (2026-09-09):** launched the
+`Pixel_3a_API_34_extension_level_7_x86_64` emulator, found the app already
+installed there from earlier (debug-signed) sessions — since a release-signed
+APK can't be installed over a differently-signed existing install
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), uninstalled the old one first (safe:
+the app has no persisted data of any kind to lose, per the privacy audit
+above) and installed `app-release.apk` fresh. Launched
+`com.pauljh4323.oraclemachine/.MainActivity` directly via `adb shell am
+start`, confirmed via `dumpsys activity activities` that it became the
+foreground (`topResumedActivity`) app. Screenshots confirmed: initial state
+renders correctly (TextBox, 5 empty slots, PRAY button); tapping PRAY
+produced 5 settled slot values (one per rule A–E: a letter, a digit, an
+arrow, a Hangul syllable, a special symbol) after the reveal completed, and
+the button returned to its enabled state afterward — confirming the button,
+slot-generation logic, and animation/settle timing all work correctly in
+the release build, not just that it compiled. Sound *audibility* itself
+still can't be verified by this session (same standing limitation as the
+sound-effects work) — the trigger logic is unchanged from the already-
+verified debug build and the web/JS bundle (where the sound logic lives)
+isn't touched by R8/ProGuard at all regardless of `minifyEnabled`, so this
+is a low-risk gap, but genuine audible confirmation is still up to the user.
+Temporary screenshot files were deleted from both the device and the repo
+working directory afterward — nothing screenshot-related was committed.
+
 ## Open items for the user
+**New:** the release AAB is ready for Play Console upload:
+`android/app/build/outputs/bundle/release/app-release.aab`. Please confirm
+audible sound playback on a real device yourself (same standing caveat as
+the sound-effects work) before/alongside uploading.
+
 **New — needs manual action:** GitHub Pages isn't enabled yet (this
 session's environment has no `gh` CLI installed) — see "Privacy policy &
 GitHub Pages" above for the exact manual steps (repo Settings → Pages →

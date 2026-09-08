@@ -33,6 +33,20 @@ in React Native). Mobile work is NOT in scope right now — only keep the door o
 Dark background, dashed blue borders, bold black/white text — see mockup description
 in context.md.
 
+## Handling credentials/secrets files
+Never open, Read, `cat`, or otherwise print the contents of a credentials or
+secrets file (keystores, `.properties` files containing passwords, `.env`
+files, API key files, etc.) — not even to "confirm the format" or "check key
+names." Well-known conventional key names (e.g. Android's
+`storePassword`/`keyPassword`/`keyAlias`/`storeFile`) should be referenced
+directly in build scripts without ever reading the file first. Use
+existence/metadata checks only (`Test-Path`, `ls`, file timestamps) to
+verify such a file is present. This rule exists because it was violated once
+(2026-09-09, release-signing setup) — reading `keystore.properties` printed
+both plaintext passwords into tool output, and the keystore had to be
+regenerated as a result. See context.md's "Release signing + first release
+AAB" entry for the full account.
+
 ## Commit policy
 Commit at the end of every completed step with a clear message describing the work,
 without asking for confirmation first. This standing rule authorizes a plain local

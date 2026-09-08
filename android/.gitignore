@@ -57,6 +57,11 @@ captures/
 #*.jks
 #*.keystore
 
+# Release signing credentials — must never be committed. Explicit entries
+# (not just the commented-out wildcards above) so this can't be missed.
+app/release-key.jks
+keystore.properties
+
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
 .cxx/
