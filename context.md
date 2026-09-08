@@ -146,6 +146,12 @@ project-root/
       sound added, verified in the dev server via instrumented timing (not
       actual listening) and confirmed bundled into the native Android assets
       after `npm run android:rebuild`. See "Sound effects" below.
+- [x] Retiming + looping button sound (2026-09-08): reveal sequence retimed
+      so the last slot locks in at a fixed 4200ms (`STAGGER_MS` 110 → 600,
+      `SCRAMBLE_DURATION_MS` unchanged at 1800); `beepbeep.mp3` changed from
+      fire-and-forget to looping, explicitly stopped when the last slot locks
+      in. Verified via instrumentation, not assumed. See "Retiming to 4200ms
+      + button sound now loops" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1120,6 +1126,60 @@ phase — no app logic other than trigger points touched:
   (`npm run android:install`, or `android:rebuild:install` for both in one
   step) and confirm both sounds play correctly and at the right moments.
 
+### Retiming to 4200ms + button sound now loops (2026-09-08)
+
+Two changes on top of the sound-effects work above, both in `src/App.jsx`
+only:
+
+- **Reveal sequence retimed to a fixed 4200ms total.** Confirmed the actual
+  code before changing anything: `STAGGER_MS = 110`,
+  `SCRAMBLE_DURATION_MS = 1800`, and the Nth slot (0-indexed `i`) locks in at
+  `i * STAGGER_MS + SCRAMBLE_DURATION_MS` (verified from the
+  `setTimeout(..., i * STAGGER_MS)` wrapping a `setTimeout(..., SCRAMBLE_DURATION_MS)`
+  in `handleOutput`). The last slot is index 4 (5 slots total), so solving
+  `STAGGER_MS * 4 + 1800 = 4200` gives `STAGGER_MS = 600` — a clean integer,
+  so no restructuring was needed; `SCRAMBLE_DURATION_MS` (1800) is unchanged,
+  per the task's preference. The math is also recorded as a code comment at
+  the `STAGGER_MS` declaration. Stagger direction is unchanged (slot 0 still
+  locks in first, slot 4 last) — just slower between slots now (110ms →
+  600ms) to land the last slot at 4200ms instead of the old ~2240ms.
+- **Button sound (`beepbeep.mp3`) changed from fire-and-forget to a looping,
+  explicitly-stopped sound.** It now starts looping (`audio.loop = true`)
+  the instant Output is clicked, via a new `startButtonSound()` that stores
+  the `Audio` instance in a `useRef` (`buttonAudioRef`) so it persists across
+  the animation instead of being a one-off local variable. A new
+  `stopButtonSound()` (`.pause()` + `.currentTime = 0`) is called at the
+  exact moment the *last* slot locks in — the same `settledCount ===
+  finalValues.length` check that already flips `isAnimating` back to
+  `false` — and defensively at the *start* of `startButtonSound()` itself
+  (in case a previous instance were somehow still running) and in the
+  component's unmount cleanup effect (a new addition alongside the existing
+  timer cleanup — needed because a *looping* Audio instance, unlike the old
+  fire-and-forget one, would otherwise keep playing forever if the component
+  unmounted mid-animation). The per-slot `beep.mp3` sound is untouched —
+  still the same fire-and-forget `playSound()` helper, just firing at the
+  new 600ms-stagger points. Both sounds keep the same `.catch(() => {})`
+  error-swallowing so a blocked `play()` still can't break the animation.
+- **Verified in the dev server (2026-09-08)** via the same
+  `Audio`-constructor-timestamp instrumentation as before (extended this time
+  to also record `.loop` and the timestamp of any `.pause()` call). One
+  Output click produced: `beepbeep.mp3` created at t=0 with `loop: true`,
+  paused at **t≈4210ms**; `beep.mp3` fired 5 separate times at
+  t≈1873/2416/3008/3618/4210ms — five distinct staggered events, the last
+  one landing at the same moment the button sound was stopped. All figures
+  land within ordinary timer jitter of the 4200ms target (the same kind of
+  small drift documented in the previous verification, from the animation's
+  45ms scramble-tick granularity) — confirmed, not assumed.
+- **Verified still bundled into the native Android build (2026-09-08):** ran
+  `npm run android:rebuild` again (`BUILD SUCCESSFUL`, exit 0) and re-checked
+  `android/app/src/main/assets/public/sounds/` — both `beep.mp3` and
+  `beepbeep.mp3` still present with unchanged byte sizes (the mp3 files
+  themselves weren't touched, only their trigger logic in `App.jsx`).
+- **Not verified — same caveat as before:** actual audible playback
+  (continuous looping button sound, and that it audibly stops right as the
+  last slot settles) on the emulator or physical phone. Please confirm after
+  installing the rebuilt APK.
+
 ## Open items for the user
 None blocking. Mobile porting (Android) is complete for now — see "Mobile
 porting — phase closed" above. The debug APK with the redesigned border-free ℵ
@@ -1131,6 +1191,10 @@ instruction to investigate only. **New:** `npm run android:rebuild[:install]`
 is now the standard way to rebuild (and optionally install) the Android
 build — see the script notes above for the multi-device caveat. Sound effects
 (button click + per-slot lock-in) have been added — see "Sound effects" below.
+**New:** the reveal sequence is now retimed to a fixed 4200ms total, and the
+button sound loops continuously until the last slot locks in (rather than
+playing once) — see "Retiming to 4200ms + button sound now loops" below.
 **Not yet done:** actual audible playback on device/emulator hasn't been
 confirmed by this session (no reliable way to "hear" it here) — please confirm
-it sounds right after installing.
+both the looping/stopping button sound and the new 4200ms pacing feel right
+after installing.

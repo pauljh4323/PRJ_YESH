@@ -10,7 +10,11 @@ const EMPTY_SLOTS = Array(SLOT_COUNT).fill(null)
 // --- Reveal animation timing/UI concern only — final values always come from
 // generateRound() in src/logic/randomRules.js; nothing here decides outcomes,
 // only how they're displayed over time. ---
-const STAGGER_MS = 110 // delay before each successive slot starts revealing
+// Total reveal time is fixed at 4200ms (last slot's lock-in): with 5 slots
+// (index 0-4) and SCRAMBLE_DURATION_MS unchanged, the last slot locks in at
+// STAGGER_MS * 4 + SCRAMBLE_DURATION_MS = 4200, so STAGGER_MS * 4 + 1800 = 4200
+// => STAGGER_MS = 600.
+const STAGGER_MS = 600 // delay before each successive slot starts revealing
 const SCRAMBLE_DURATION_MS = 1800 // how long a slot scrambles before locking in
 const SCRAMBLE_TICK_MS = 45 // how often the scrambled character changes
 
@@ -40,12 +44,43 @@ function App() {
   const [isAnimating, setIsAnimating] = useState(false)
   const timeoutIdsRef = useRef([])
   const intervalIdsRef = useRef([])
+  const buttonAudioRef = useRef(null) // the currently-looping beepbeep.mp3 instance, if any
 
-  // Clear any pending timers if the component unmounts mid-animation.
+  // Stop and reset the looping button sound, if one is currently playing.
+  function stopButtonSound() {
+    const audio = buttonAudioRef.current
+    if (!audio) return
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch {
+      // ignore
+    }
+  }
+
+  // Start the button sound looping. Stops any previous instance first
+  // (belt-and-suspenders — the button is already disabled during animation,
+  // so this shouldn't normally find one running) before creating a fresh,
+  // looping Audio instance.
+  function startButtonSound() {
+    stopButtonSound()
+    try {
+      const audio = new Audio('/sounds/beepbeep.mp3')
+      audio.loop = true
+      buttonAudioRef.current = audio
+      audio.play().catch(() => {})
+    } catch {
+      // ignore
+    }
+  }
+
+  // Clear any pending timers, and stop the looping button sound, if the
+  // component unmounts mid-animation.
   useEffect(() => {
     return () => {
       timeoutIdsRef.current.forEach(clearTimeout)
       intervalIdsRef.current.forEach(clearInterval)
+      stopButtonSound()
     }
   }, [])
 
@@ -54,7 +89,7 @@ function App() {
 
     const finalValues = generateRound()
     setIsAnimating(true)
-    playSound('/sounds/beepbeep.mp3')
+    startButtonSound()
 
     let settledCount = 0
 
@@ -79,6 +114,7 @@ function App() {
           playSound('/sounds/beep.mp3')
           settledCount += 1
           if (settledCount === finalValues.length) {
+            stopButtonSound()
             setIsAnimating(false)
           }
         }, SCRAMBLE_DURATION_MS)
