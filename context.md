@@ -171,6 +171,12 @@ project-root/
       regenerated the keystore with a fresh password as a result; see
       "Release signing + first release AAB" below for the full account and
       the resulting standing rule (also added to CLAUDE.md).
+- [x] Version bump for re-upload (2026-09-09): Play Console rejected the
+      `versionCode 1` upload as a duplicate. Bumped `versionCode` 1 → 2 and
+      `versionName` "1.0" → "1.0.1" in `android/app/build.gradle`, no app
+      code changed. Rebuilt `app-release.aab` — `BUILD SUCCESSFUL`, same
+      signing config, fresh timestamp confirmed. See "Version bump for
+      re-upload" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1391,8 +1397,34 @@ is a low-risk gap, but genuine audible confirmation is still up to the user.
 Temporary screenshot files were deleted from both the device and the repo
 working directory afterward — nothing screenshot-related was committed.
 
+### Version bump for re-upload (2026-09-09)
+
+Play Console rejected the first upload attempt: `versionCode 1` had already
+been uploaded once and Play Console won't accept the same `versionCode`
+twice, even for an identical, unpublished build. No app behavior changed —
+this is purely a version-metadata bump so the same artifact can be
+re-uploaded. In `android/app/build.gradle`'s `defaultConfig`:
+- `versionCode`: `1` → `2` (Play Console's required, opaque internal
+  counter — must strictly increase per upload).
+- `versionName`: `"1.0"` → `"1.0.1"` (the user-visible version string;
+  bumped the patch component since this is a metadata-only re-upload, not a
+  new feature version).
+
+Rebuilt with `gradlew.bat bundleRelease` from `android/` — `BUILD
+SUCCESSFUL`, `signReleaseBundle` ran again (same signing config as the
+previous task, untouched and confirmed still working). New
+`app-release.aab` overwrote the previous local file at the same standard
+path, timestamp confirmed fresh (13:20, matching the actual build run).
+Did **not** repeat the full on-device sanity test from the signing-setup
+task, since only version metadata changed — no app code was touched.
+Re-confirmed via `git status` before committing that neither
+`release-key.jks` nor `keystore.properties` were staged, per the standing
+rule in CLAUDE.md.
+
 ## Open items for the user
-**New:** the release AAB is ready for Play Console upload:
+**New:** the release AAB is ready for re-upload to Play Console (this time
+with `versionCode 2` / `versionName "1.0.1"`, since `versionCode 1` was
+already used and rejected on re-upload):
 `android/app/build/outputs/bundle/release/app-release.aab`. Please confirm
 audible sound playback on a real device yourself (same standing caveat as
 the sound-effects work) before/alongside uploading.
