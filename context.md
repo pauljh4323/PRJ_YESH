@@ -177,6 +177,12 @@ project-root/
       code changed. Rebuilt `app-release.aab` — `BUILD SUCCESSFUL`, same
       signing config, fresh timestamp confirmed. See "Version bump for
       re-upload" below.
+- [x] Simultaneous scramble start (2026-09-09): all 5 slots now start
+      scrambling at t≈0 on click instead of staggered; each slot's LOCK-IN
+      time is unchanged (still 1800/2400/3000/3600/4200ms). Verified via
+      `Audio`/`setInterval` instrumentation, not assumed — sound timing is
+      identical to before. See "Simultaneous scramble start, staggered
+      lock-in unchanged" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1420,6 +1426,59 @@ task, since only version metadata changed — no app code was touched.
 Re-confirmed via `git status` before committing that neither
 `release-key.jks` nor `keystore.properties` were staged, per the standing
 rule in CLAUDE.md.
+
+### Simultaneous scramble start, staggered lock-in unchanged (2026-09-09)
+
+Changed the reveal animation in `src/App.jsx` so all 5 slots visibly start
+scrambling together the instant Output is clicked, instead of starting
+one-by-one — while keeping every slot's lock-in moment exactly as it was.
+
+- **Confirmed the real prior structure before changing anything:** each
+  slot had an *outer* `setTimeout(..., i * STAGGER_MS)` that, once fired,
+  started that slot's scramble `setInterval` and *then* scheduled its
+  lock-in via a *nested* `setTimeout(..., SCRAMBLE_DURATION_MS)` — so a
+  slot's scramble start and its lock-in were tied together, both offset by
+  `i * STAGGER_MS`. `STAGGER_MS` was `600`, `SCRAMBLE_DURATION_MS` was
+  `1800`, giving lock-ins at 1800/2400/3000/3600/4200ms for slots 0-4 (the
+  same figures documented in the "Retiming to 4200ms" work).
+- **The fix:** removed the outer per-slot start delay entirely — every
+  slot's scramble `setInterval` now starts synchronously inside the same
+  `forEach`, i.e. all 5 at t≈0. The lock-in `setTimeout` is no longer nested
+  inside the start delay; its delay is now computed directly as
+  `i * STAGGER_MS + SCRAMBLE_DURATION_MS`, reproducing the exact same
+  absolute lock-in timestamps as before. `STAGGER_MS` is no longer "how
+  long to wait before a slot starts" — it's now purely the per-slot offset
+  added to the lock-in time; the code comment at its declaration was
+  updated to say so. No other structural change was needed — the existing
+  per-slot interval/timeout-ref bookkeeping, sound calls, and
+  `settledCount`/`isAnimating` logic are untouched.
+- **Verified sound timing was NOT assumed unchanged — re-checked with the
+  same `Audio`-instrumentation approach as before** (wrapping
+  `window.Audio` to timestamp construction/`.loop`/`.pause()`): one click
+  produced `beepbeep.mp3` looping from t=0 and paused at t≈4206ms, and
+  `beep.mp3` firing 5 separate times at t≈1803/2412/3004/3610/4206ms —
+  matching the pre-change schedule within ordinary timer jitter. Confirmed,
+  not assumed.
+- **Verified simultaneous scramble start** two ways: (1) instrumenting
+  `window.setInterval` itself showed all 5 interval-creation calls landing
+  within 1ms of each other (t≈0-1ms); (2) a single self-contained
+  instrumented click (using the page's own `performance.now()` for timing,
+  avoiding this session's round-trip latency) sampled all 5 slots'
+  displayed text at controlled checkpoints and confirmed: all 5 slots
+  already show distinct scramble characters within 62ms of the click
+  (simultaneous start), and they then lock in one at a time — slot 0
+  between the 1000-2000ms checkpoints, slot 1 between 2000-2900ms, slot 2
+  between 2900-3500ms, slot 3 between 3500-4100ms, and slot 4 between
+  4100-4464ms (where the button re-enabled) — exactly matching the expected
+  1800/2400/3000/3600/4200ms lock-in schedule while visibly scrambling
+  together from t=0. This is the intended new visual: leftmost slot settles
+  first while the others keep scrambling, ending with the rightmost slot at
+  ~4.2s, rather than a staggered start-and-settle wave.
+- **Rebuilt for Android:** `npm run android:rebuild` → `BUILD SUCCESSFUL`.
+  Since only the animation's internal JS timer scheduling changed (no
+  native code, no dependency, no sound-file change), a full on-device
+  sanity install wasn't repeated — no platform-specific risk was
+  introduced.
 
 ## Open items for the user
 **New:** the release AAB is ready for re-upload to Play Console (this time

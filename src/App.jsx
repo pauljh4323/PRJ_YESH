@@ -10,11 +10,13 @@ const EMPTY_SLOTS = Array(SLOT_COUNT).fill(null)
 // --- Reveal animation timing/UI concern only — final values always come from
 // generateRound() in src/logic/randomRules.js; nothing here decides outcomes,
 // only how they're displayed over time. ---
-// Total reveal time is fixed at 4200ms (last slot's lock-in): with 5 slots
-// (index 0-4) and SCRAMBLE_DURATION_MS unchanged, the last slot locks in at
-// STAGGER_MS * 4 + SCRAMBLE_DURATION_MS = 4200, so STAGGER_MS * 4 + 1800 = 4200
-// => STAGGER_MS = 600.
-const STAGGER_MS = 600 // delay before each successive slot starts revealing
+// All 5 slots start scrambling together at t=0 (click), but still LOCK IN on
+// a staggered schedule: slot i locks in at i * STAGGER_MS + SCRAMBLE_DURATION_MS.
+// Total reveal time is fixed at 4200ms (the last slot's lock-in): with 5 slots
+// (index 0-4) and SCRAMBLE_DURATION_MS unchanged, STAGGER_MS * 4 + 1800 = 4200
+// => STAGGER_MS = 600. (STAGGER_MS is no longer a start delay — see
+// handleOutput — it's purely the per-slot offset added to the lock-in time.)
+const STAGGER_MS = 600
 const SCRAMBLE_DURATION_MS = 1800 // how long a slot scrambles before locking in
 const SCRAMBLE_TICK_MS = 45 // how often the scrambled character changes
 
@@ -94,33 +96,34 @@ function App() {
     let settledCount = 0
 
     finalValues.forEach((finalValue, i) => {
-      const startTimeoutId = setTimeout(() => {
-        const intervalId = setInterval(() => {
-          setDisplaySlots((prev) => {
-            const next = [...prev]
-            next[i] = randomScrambleChar()
-            return next
-          })
-        }, SCRAMBLE_TICK_MS)
-        intervalIdsRef.current.push(intervalId)
+      // Scramble starts immediately for every slot (t=0) — only the lock-in
+      // below stays staggered, so slots settle left-to-right on the same
+      // schedule as before while all visibly scrambling together from the
+      // start.
+      const intervalId = setInterval(() => {
+        setDisplaySlots((prev) => {
+          const next = [...prev]
+          next[i] = randomScrambleChar()
+          return next
+        })
+      }, SCRAMBLE_TICK_MS)
+      intervalIdsRef.current.push(intervalId)
 
-        const lockInTimeoutId = setTimeout(() => {
-          clearInterval(intervalId)
-          setDisplaySlots((prev) => {
-            const next = [...prev]
-            next[i] = finalValue
-            return next
-          })
-          playSound('/sounds/beep.mp3')
-          settledCount += 1
-          if (settledCount === finalValues.length) {
-            stopButtonSound()
-            setIsAnimating(false)
-          }
-        }, SCRAMBLE_DURATION_MS)
-        timeoutIdsRef.current.push(lockInTimeoutId)
-      }, i * STAGGER_MS)
-      timeoutIdsRef.current.push(startTimeoutId)
+      const lockInTimeoutId = setTimeout(() => {
+        clearInterval(intervalId)
+        setDisplaySlots((prev) => {
+          const next = [...prev]
+          next[i] = finalValue
+          return next
+        })
+        playSound('/sounds/beep.mp3')
+        settledCount += 1
+        if (settledCount === finalValues.length) {
+          stopButtonSound()
+          setIsAnimating(false)
+        }
+      }, i * STAGGER_MS + SCRAMBLE_DURATION_MS)
+      timeoutIdsRef.current.push(lockInTimeoutId)
     })
   }
 
