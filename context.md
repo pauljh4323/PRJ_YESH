@@ -183,6 +183,12 @@ project-root/
       `Audio`/`setInterval` instrumentation, not assumed — sound timing is
       identical to before. See "Simultaneous scramble start, staggered
       lock-in unchanged" below.
+- [x] Version bump for release incl. simultaneous-scramble-start (2026-09-09):
+      `versionCode` 2 → 3, `versionName` "1.0.1" → "1.0.2". Rebuilt
+      `app-release.aab`/`app-release.apk`; on-device sanity check on the
+      release-signed APK itself (not just the debug build) confirmed
+      simultaneous start + staggered lock-in works correctly. See "Version
+      bump for release including simultaneous-scramble-start" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1480,11 +1486,64 @@ one-by-one — while keeping every slot's lock-in moment exactly as it was.
   sanity install wasn't repeated — no platform-specific risk was
   introduced.
 
+### Version bump for release including simultaneous-scramble-start (2026-09-09)
+
+Bumped `versionCode`/`versionName` again to ship the simultaneous-
+scramble-start change above in a fresh release build, and this time — since
+it's an actual behavior change, not just a metadata bump like the previous
+version bump — actually verified it on-device in the release-signed build
+itself rather than relying on the dev-server/debug-build verification
+alone:
+
+- `android/app/build.gradle`'s `defaultConfig`: `versionCode` `2` → `3`,
+  `versionName` `"1.0.1"` → `"1.0.2"`.
+- Ran `npm run build` + `npx cap sync android` first (not just
+  `bundleRelease` on its own) to make sure the release bundle actually
+  picks up the latest web assets, including the simultaneous-scramble-start
+  change — confirmed by checking the on-device behavior below, not assumed
+  from the build succeeding.
+- `gradlew.bat bundleRelease` → `BUILD SUCCESSFUL`, fresh `app-release.aab`
+  at the standard path (timestamp confirmed fresh, ~14:40).
+- `gradlew.bat assembleRelease` → `BUILD SUCCESSFUL`, `app-release.apk` for
+  local testing.
+- **On-device sanity check on the release-signed APK specifically**
+  (emulator `Pixel_3a_API_34_extension_level_7_x86_64`): uninstalled the
+  existing (differently-signed) install first, as required, installed
+  `app-release.apk` fresh, launched it, and tapped PRAY. Verified via a
+  single on-device `adb shell` command chaining `input tap` + multiple
+  `screencap` calls with `sleep`s in between — all captured natively on
+  the device in one shell invocation, avoiding this session's own
+  host-side round-trip latency (which had thrown off wall-clock timing
+  estimates in earlier verification attempts, both in this task and the
+  prior sound-effects work). Results: an early screenshot showed all 5
+  slots already displaying distinct scrambled characters simultaneously
+  with the button disabled (confirms simultaneous start, not staggered, in
+  the actual release build); two later screenshots ~1.2s apart showed
+  slots 0-2 already locked and unchanged while slots 3 and 4 visibly
+  changed values between the two captures (confirms slots continue locking
+  in progressively/staggered, not all at once); a final screenshot showed
+  all 5 slots settled and the button re-enabled. This confirms the
+  simultaneous-start/staggered-lock-in behavior works correctly in the
+  release-signed build itself, not just in the debug build already
+  verified. (Exact millisecond alignment with the dev-server's
+  `performance.now()`-based instrumentation wasn't attempted here — that
+  precise timing proof already exists from the previous task; this check's
+  purpose was to catch any release-build-specific regression, e.g. from
+  minification or WebView differences, and none was found.) Sound
+  audibility itself remains unverified by this session, per the standing
+  limitation noted throughout this project's sound-effects work.
+- Temporary on-device screenshots were deleted from both the device and
+  the local working directory afterward; nothing screenshot-related was
+  committed.
+- Re-confirmed via `git status` before committing that neither
+  `release-key.jks` nor `keystore.properties` were staged.
+
 ## Open items for the user
-**New:** the release AAB is ready for re-upload to Play Console (this time
-with `versionCode 2` / `versionName "1.0.1"`, since `versionCode 1` was
-already used and rejected on re-upload):
-`android/app/build/outputs/bundle/release/app-release.aab`. Please confirm
+**New:** the release AAB is ready for upload to Play Console with
+`versionCode 3` / `versionName "1.0.2"` (includes the simultaneous-
+scramble-start change, verified on-device in the release build itself):
+`android/app/build/outputs/bundle/release/app-release.aab`. The previous
+`versionCode 2` AAB should NOT be uploaded — this one supersedes it. Please confirm
 audible sound playback on a real device yourself (same standing caveat as
 the sound-effects work) before/alongside uploading.
 
