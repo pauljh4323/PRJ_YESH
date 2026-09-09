@@ -189,6 +189,12 @@ project-root/
       release-signed APK itself (not just the debug build) confirmed
       simultaneous start + staggered lock-in works correctly. See "Version
       bump for release including simultaneous-scramble-start" below.
+- [x] Sideloaded release build onto physical phone (2026-09-09): installed
+      `app-release.apk` (`versionCode 3` / `versionName "1.0.2"`) on the
+      Samsung SM-S938N (`R3KYB05SARN`) via `adb install`, confirmed on-device
+      via `dumpsys package`. App wasn't previously installed there, so no
+      uninstall was needed. Not launched — left for the user. See "Sideloaded
+      release build onto the physical phone" below.
 
 ### Step 1 notes — assumptions & deviations
 - Scaffolded with `npm create vite@latest` (react template, JS not TS — matches
@@ -1538,7 +1544,42 @@ alone:
 - Re-confirmed via `git status` before committing that neither
   `release-key.jks` nor `keystore.properties` were staged.
 
+### Sideloaded release build onto the physical phone (2026-09-09)
+
+Installed the release-signed `app-release.apk` (`versionCode 3` /
+`versionName "1.0.2"`) directly onto the user's physical phone
+(`R3KYB05SARN`, Samsung SM-S938N) for final on-device confirmation before
+Play Store upload.
+
+- **Phone connectivity was flaky this session** — `adb devices` initially
+  showed only the emulator (or nothing at all), across two separate
+  attempts; stopped and asked the user to check the USB connection/
+  authorization each time rather than guessing around it, per instructions.
+  Third attempt showed the phone as `R3KYB05SARN`, status `device`
+  (authorized) — proceeded only once actually confirmed, not assumed fixed.
+- Confirmed the existing `app-release.apk` (timestamp ~14:40, from the
+  previous version-bump task) is the correct build by reading its actual
+  metadata with `aapt dump badging`, not just trusting the file timestamp:
+  `versionCode='3' versionName='1.0.2'` — matched, no rebuild needed.
+- Checked `pm list packages` on the phone first — the app was **not**
+  already installed there at all (no prior debug-signed install to
+  conflict with, unlike the emulator), so no uninstall step was needed;
+  installed directly with `adb -s R3KYB05SARN install app-release.apk` →
+  `Success`.
+- Confirmed on-device via `dumpsys package` that the installed version is
+  genuinely `versionCode=3` / `versionName=1.0.2`.
+- Did **not** launch the app — left for the user to open themselves.
+- Did **not** touch the emulator in this step (it wasn't even running by
+  this point in the session).
+
 ## Open items for the user
+**New:** the release build (`versionCode 3` / `versionName "1.0.2"`) is now
+sideloaded on your physical phone (Samsung SM-S938N) — this is the exact
+same build that would go to Play Store, so it's worth a full click-through
+there (button, animation, sounds) before uploading, not just on the
+emulator.
+
+
 **New:** the release AAB is ready for upload to Play Console with
 `versionCode 3` / `versionName "1.0.2"` (includes the simultaneous-
 scramble-start change, verified on-device in the release build itself):
